@@ -19,6 +19,7 @@ import type { LlmsTxtSource } from "./llms-txt.js";
 import type { RobotsConfig } from "./robots.js";
 import { findUnknownAgents, renderContentSignalsHeadersFile, renderRobots } from "./robots.js";
 import type { SitemapSource } from "./sitemap.js";
+import { buildSitemapFiles, collectEntries, renderSitemap } from "./sitemap.js";
 import type { OgModule } from "./og.js";
 import type { AuditRule } from "./audit.js";
 import { isAbsoluteUrl } from "./internal/render-site-meta.js";
@@ -84,10 +85,12 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         const robotsBody = renderRobotsForOpts(opts);
         await writeFile(`${outDir}robots.txt`, robotsBody, "utf-8");
 
-        const sitemapBody = renderMinimalSitemap();
-        await writeFile(`${outDir}sitemap.xml`, sitemapBody, "utf-8");
+        const sitemapFiles = await buildSitemapForOpts(opts, logger);
+        await Promise.all(
+          sitemapFiles.map((file) => writeFile(`${outDir}${file.path}`, file.content, "utf-8")),
+        );
 
-        const written = ["robots.txt", "sitemap.xml"];
+        const written = ["robots.txt", ...sitemapFiles.map((f) => f.path)];
 
         const headersBody = renderHeadersFile(opts);
         if (headersBody.length > 0) {
@@ -149,10 +152,17 @@ function renderHeadersFile(opts: AstroMetaOptions): string {
   return renderContentSignalsHeadersFile(opts.robots.contentSignals);
 }
 
-function renderMinimalSitemap(): string {
-  return (
-    '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    "</urlset>\n"
-  );
+async function buildSitemapForOpts(
+  opts: AstroMetaOptions,
+  logger: MinimalLogger,
+): Promise<{ path: string; content: string }[]> {
+  if (!opts.sitemap || opts.sitemap.sources.length === 0) {
+    return [{ path: "sitemap.xml", content: renderSitemap([]) }];
+  }
+  const entries = await collectEntries({
+    sources: opts.sitemap.sources,
+    ctx: { site: opts.site },
+    logger,
+  });
+  return buildSitemapFiles(entries, opts.site.url, opts.sitemap.chunkSize);
 }
