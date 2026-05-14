@@ -217,9 +217,8 @@ async function buildLlmsTxtForOpts(
   return files;
 }
 
-function routeFromHtmlPath(htmlPath: string, outDir: string): string {
-  const rel = htmlPath.startsWith(outDir) ? htmlPath.slice(outDir.length) : htmlPath;
-  const stripped = posixPath.normalize(`/${rel}`).replace(/index\.html$/, "");
+function routeFromHtmlPath(htmlPath: string): string {
+  const stripped = posixPath.normalize(`/${htmlPath}`).replace(/index\.html$/, "");
   return stripped.length === 0 ? "/" : stripped;
 }
 
@@ -232,7 +231,7 @@ async function injectSchemasIntoHtml(opts: AstroMetaOptions, outDir: string): Pr
   let touched = 0;
   await Promise.all(
     htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel, "");
+      const route = routeFromHtmlPath(rel);
       const ctx = { site: opts.site, page: { route } };
       const objects = await collectSchemas(opts.schema?.modules ?? [], ctx);
       if (objects.length === 0) return;
@@ -259,7 +258,7 @@ async function renderAndInjectOg(opts: AstroMetaOptions, outDir: string): Promis
   let written = 0;
   await Promise.all(
     htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel, "");
+      const route = routeFromHtmlPath(rel);
       const matchingModules =
         opts.og?.modules.filter((m) => (m.match ? m.match(route) : true)) ?? [];
       if (matchingModules.length === 0) return;
@@ -294,7 +293,7 @@ async function runAuditForOpts(
   if (htmlFiles.length === 0) return null;
   const routes = await Promise.all(
     htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel, "");
+      const route = routeFromHtmlPath(rel);
       const html = await readFile(`${outDir}${rel}`, "utf-8");
       return parseRoute(route, html);
     }),
