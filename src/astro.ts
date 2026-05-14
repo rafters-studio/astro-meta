@@ -185,6 +185,19 @@ function routeFromHtmlPath(htmlPath: string): string {
   return stripped.length === 0 ? "/" : stripped;
 }
 
+interface DistRoute {
+  rel: string;
+  route: string;
+}
+
+async function discoverDistRoutes(outDir: string): Promise<DistRoute[]> {
+  const routes: DistRoute[] = [];
+  for await (const rel of glob("**/*.html", { cwd: outDir })) {
+    routes.push({ rel, route: routeFromHtmlPath(rel) });
+  }
+  return routes;
+}
+
 /**
  * Walk dist/**\/*.html read-only to discover routes, run the first matching
  * OG module per route, write the PNG to dist/og/<slug>.png. The integration
@@ -197,15 +210,11 @@ async function renderOgPngs(
   logger: MinimalLogger,
 ): Promise<number> {
   if (!opts.og || opts.og.modules.length === 0) return 0;
-  const htmlFiles: string[] = [];
-  for await (const entry of glob("**/*.html", { cwd: outDir })) {
-    htmlFiles.push(entry);
-  }
+  const routes = await discoverDistRoutes(outDir);
   await mkdir(`${outDir}og`, { recursive: true });
   let written = 0;
   await Promise.all(
-    htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel);
+    routes.map(async ({ route }) => {
       const matchingModules =
         opts.og?.modules.filter((m) => (m.match ? m.match(route) : true)) ?? [];
       if (matchingModules.length === 0) return;
@@ -234,20 +243,16 @@ async function runAuditForOpts(
   logger: MinimalLogger,
 ): Promise<ReturnType<typeof runAudit> | null> {
   if (!opts.audit) return null;
-  const htmlFiles: string[] = [];
-  for await (const entry of glob("**/*.html", { cwd: outDir })) {
-    htmlFiles.push(entry);
-  }
-  if (htmlFiles.length === 0) return null;
-  const routes = await Promise.all(
-    htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel);
+  const distRoutes = await discoverDistRoutes(outDir);
+  if (distRoutes.length === 0) return null;
+  const parsedRoutes = await Promise.all(
+    distRoutes.map(async ({ rel, route }) => {
       const html = await readFile(`${outDir}${rel}`, "utf-8");
       return parseRoute(route, html);
     }),
   );
   const rules = opts.audit.rules ?? defaultRules;
-  const report = runAudit(routes, rules);
+  const report = runAudit(parsedRoutes, rules);
   for (const r of report.routes) {
     if (r.score < 50) logger.warn(`audit: ${r.route} scored ${r.score}/100`);
   }
