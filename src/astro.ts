@@ -14,8 +14,9 @@
 // generated HTML; build:done writes files only.
 
 import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
-import { posix as posixPath } from "node:path";
-import type { AstroIntegration } from "astro";
+import { join, posix as posixPath } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { AstroIntegration, AstroIntegrationLogger } from "astro";
 import type { SiteIdentity } from "./index.js";
 import type { LlmsTxtSource } from "./llms-txt.js";
 import { buildLlmsTxt } from "./llms-txt.js";
@@ -77,20 +78,21 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
       },
 
       "astro:build:done": async ({ dir, logger }) => {
-        const outDir = dir.pathname;
+        const buildLogger = logger.fork("astro-meta");
+        const outDir = fileURLToPath(dir);
         await mkdir(outDir, { recursive: true });
 
         const robotsBody = renderRobotsForOpts(opts);
-        await writeFile(`${outDir}robots.txt`, robotsBody, "utf-8");
+        await writeFile(join(outDir, "robots.txt"), robotsBody, "utf-8");
 
-        const sitemapFiles = await buildSitemapForOpts(opts, logger);
+        const sitemapFiles = await buildSitemapForOpts(opts, buildLogger);
         await Promise.all(
-          sitemapFiles.map((file) => writeFile(`${outDir}${file.path}`, file.content, "utf-8")),
+          sitemapFiles.map((file) => writeFile(join(outDir, file.path), file.content, "utf-8")),
         );
 
         const llmsFiles = await buildLlmsTxtForOpts(opts);
         await Promise.all(
-          llmsFiles.map((file) => writeFile(`${outDir}${file.path}`, file.content, "utf-8")),
+          llmsFiles.map((file) => writeFile(join(outDir, file.path), file.content, "utf-8")),
         );
 
         const written = [
@@ -101,19 +103,19 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
 
         const headersBody = renderHeadersFile(opts);
         if (headersBody.length > 0) {
-          await writeFile(`${outDir}_headers`, headersBody, "utf-8");
+          await writeFile(join(outDir, "_headers"), headersBody, "utf-8");
           written.push("_headers");
         }
 
-        const ogCount = await renderOgPngs(opts, outDir, logger);
+        const ogCount = await renderOgPngs(opts, outDir, buildLogger);
         if (ogCount > 0) {
           written.push(`og(${ogCount} image(s))`);
         }
 
-        const auditReport = await runAuditForOpts(opts, outDir, logger);
+        const auditReport = await runAuditForOpts(opts, outDir, buildLogger);
         if (auditReport) {
           await writeFile(
-            `${outDir}_geo-audit.json`,
+            join(outDir, "_geo-audit.json"),
             JSON.stringify(auditReport, null, 2),
             "utf-8",
           );
@@ -130,15 +132,13 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
           }
         }
 
-        logger.info(`wrote ${written.join(", ")}`);
+        buildLogger.info(`wrote ${written.join(", ")}`);
       },
     },
   };
 }
 
-interface MinimalLogger {
-  warn: (msg: string) => void;
-}
+type MinimalLogger = Pick<AstroIntegrationLogger, "warn">;
 
 function warnIfEmpty(opts: AstroMetaOptions, logger: MinimalLogger): void {
   const empty = [
@@ -235,7 +235,8 @@ async function renderOgPngs(
 ): Promise<number> {
   if (!opts.og || opts.og.modules.length === 0) return 0;
   const routes = await discoverDistRoutes(outDir);
-  await mkdir(`${outDir}og`, { recursive: true });
+  const ogDir = join(outDir, "og");
+  await mkdir(ogDir, { recursive: true });
   let written = 0;
   await Promise.all(
     routes.map(async ({ route }) => {
@@ -252,8 +253,8 @@ async function renderOgPngs(
       }
       const png = await renderOg(firstModule, { site: opts.site, page: { route } });
       const slug = ogSlugForRoute(route);
-      const pngPath = `${outDir}og/${slug}.png`;
-      await mkdir(posixPath.dirname(pngPath), { recursive: true });
+      const pngPath = join(ogDir, `${slug}.png`);
+      await mkdir(join(ogDir, posixPath.dirname(slug)), { recursive: true });
       await writeFile(pngPath, png);
       written += 1;
     }),
@@ -271,7 +272,7 @@ async function runAuditForOpts(
   if (distRoutes.length === 0) return null;
   const parsedRoutes = await Promise.all(
     distRoutes.map(async ({ rel, route }) => {
-      const html = await readFile(`${outDir}${rel}`, "utf-8");
+      const html = await readFile(join(outDir, rel), "utf-8");
       return parseRoute(route, html);
     }),
   );

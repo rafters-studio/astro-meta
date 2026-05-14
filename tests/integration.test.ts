@@ -31,10 +31,23 @@ function fakeConfigSetupArgs() {
   };
 }
 
+function fakeLogger() {
+  const logger = {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+    fork: () => logger,
+    label: "test",
+    options: {},
+  };
+  return logger;
+}
+
 function fakeBuildDoneArgs(distDir: string) {
   return {
     dir: new URL(`file://${distDir}/`),
-    logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+    logger: fakeLogger(),
     routes: [],
     pages: [],
   };
