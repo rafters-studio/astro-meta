@@ -207,19 +207,13 @@ Each rule emits pass, warn, or fail. The CI threshold gate fails the build when 
 
 ## Composition.
 
-Three sibling packages. Each does one thing.
-
 ### `@rafters/astro-data`: loaders and actions.
 
 [`@rafters/astro-data`](https://github.com/rafters-studio/astro-data) is the read/write/cache/revalidate contract for runtime data: loaders, actions, hierarchical cache, revalidation. astro-meta is the build-time emission contract. A single content collection can feed both: the same entry that hydrates an island via `astro-data` is the entry the layout passes to `mergeGraph` and `<SchemaScript>` to emit the JSON-LD. The two packages share the hierarchical key convention so module organization stays consistent across the build and runtime sides.
 
-### eavesdrop: discourse ingestion and citation tracking.
-
-[eavesdrop](https://github.com/rafters-studio/eavesdrop) is the discourse ingestion and semantic search engine. Citation tracking, "did our content surface in ChatGPT or Perplexity last week," and share-of-voice analytics live there as source adapters. astro-meta makes the page legible. eavesdrop measures whether legibility translated into visibility. The two packages do not call each other.
-
 ### Independence.
 
-All three packages are independent. Adopt one, two, or all three. astro-meta does not require astro-data or eavesdrop; the reverse is also true.
+The two packages are independent. astro-meta does not require astro-data; the reverse is also true.
 
 ## Public surface.
 

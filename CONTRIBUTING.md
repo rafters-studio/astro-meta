@@ -48,7 +48,6 @@ No long-lived `NPM_TOKEN` exists in this repo. Releases are minted per-publish v
 
 ### What does NOT belong
 
-- Citation tracking, share-of-voice, prompt monitoring -- write a source adapter for [eavesdrop](https://github.com/rafters-studio/eavesdrop)
 - Data loaders, mutations, cache, revalidation -- compose with [@rafters/astro-data](https://github.com/rafters-studio/astro-data)
 - Content authoring UI -- compose with [kelex](https://github.com/rafters-studio/kelex) for schema-generated forms
 - Local-first sync -- compose with [smugglr](https://smugglr.dev)
