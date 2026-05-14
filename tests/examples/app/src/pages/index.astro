@@ -1,0 +1,36 @@
+---
+const pageTitle = "astro-meta example";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <header>
+      <h1>@rafters/astro-meta -- example</h1>
+      <p>
+        Site-level meta is injected by the integration. View source to see the
+        canonical URL, OG tags, and generator tag.
+      </p>
+    </header>
+    <main>
+      <h2>Routes</h2>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </main>
+    <footer>
+      <p>
+        Source:
+        <a href="https://github.com/rafters-studio/astro-meta"
+          >github.com/rafters-studio/astro-meta</a
+        >
+      </p>
+    </footer>
+  </body>
+</html>
