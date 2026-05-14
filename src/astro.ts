@@ -24,6 +24,7 @@ import { findUnknownAgents, renderContentSignalsHeadersFile, renderRobots } from
 import type { SitemapSource } from "./sitemap.js";
 import { buildSitemapFiles, collectEntries, renderSitemap } from "./sitemap.js";
 import type { OgModule } from "./og.js";
+import { ogSlugForRoute, renderOg } from "./og.js";
 import type { AuditRule } from "./audit.js";
 import { injectIntoHead, isAbsoluteUrl } from "./internal/render-site-meta.js";
 
@@ -113,6 +114,11 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         const schemaCount = await injectSchemasIntoHtml(opts, outDir);
         if (schemaCount > 0) {
           written.push(`schema(${schemaCount} route(s))`);
+        }
+
+        const ogCount = await renderAndInjectOg(opts, outDir);
+        if (ogCount > 0) {
+          written.push(`og(${ogCount} image(s))`);
         }
 
         logger.info(`wrote ${written.join(", ")}`);
@@ -220,6 +226,38 @@ async function injectSchemasIntoHtml(opts: AstroMetaOptions, outDir: string): Pr
     }),
   );
   return touched;
+}
+
+async function renderAndInjectOg(opts: AstroMetaOptions, outDir: string): Promise<number> {
+  if (!opts.og || opts.og.modules.length === 0) return 0;
+  const htmlFiles: string[] = [];
+  for await (const entry of glob("**/*.html", { cwd: outDir })) {
+    htmlFiles.push(entry);
+  }
+  await mkdir(`${outDir}og`, { recursive: true });
+  let written = 0;
+  await Promise.all(
+    htmlFiles.map(async (rel) => {
+      const route = routeFromHtmlPath(rel, "");
+      const matchingModules =
+        opts.og?.modules.filter((m) => (m.match ? m.match(route) : true)) ?? [];
+      if (matchingModules.length === 0) return;
+      const firstModule = matchingModules[0];
+      if (!firstModule) return;
+      const png = await renderOg(firstModule, { site: opts.site, page: { route } });
+      const slug = ogSlugForRoute(route);
+      const pngPath = `${outDir}og/${slug}.png`;
+      await mkdir(posixPath.dirname(pngPath), { recursive: true });
+      await writeFile(pngPath, png);
+      written += 1;
+      const filePath = `${outDir}${rel}`;
+      const html = await readFile(filePath, "utf-8");
+      const ogUrl = `${opts.site.url}/og/${slug}.png`;
+      const tag = `<meta property="og:image" content="${ogUrl}">`;
+      await writeFile(filePath, injectIntoHead(html, tag), "utf-8");
+    }),
+  );
+  return written;
 }
 
 async function buildSitemapForOpts(

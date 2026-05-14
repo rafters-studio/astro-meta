@@ -1,33 +1,101 @@
 // @rafters/astro-meta/og — Open Graph image generation
 //
-// Satori-based per-page PNG. The module declares its JSX-shaped template;
-// the integration runs satori + resvg on build:done to produce one image per
-// route. Satori is an optional peer dependency; consumers that don't import
-// from this subpath pay nothing.
+// Satori + resvg-js produce one PNG per (module, route) match at build:done.
+// Both peers are optional; consumers that don't import this subpath pay
+// nothing. v0.1 supports route filtering via OgModule.match; per-page input
+// validation and cache-by-hash arrive in v0.2.
 
-import type { z } from "astro/zod";
 import type { MetaContext } from "./index.js";
 
 /**
- * Satori-compatible element. The full JSX type lives in the satori peer dep;
- * v0.1 uses an opaque structural type to avoid forcing the dep at scaffold.
+ * Satori-compatible element. Structurally compatible with React.ReactElement
+ * for satori's purposes. Consumers can return JSX directly when their build
+ * supports it, or a plain object literal of this shape.
  */
-export type SatoriElement = { type: string; props: Record<string, unknown> };
+export interface SatoriElement {
+  type: string;
+  props: {
+    style?: Record<string, unknown>;
+    children?: SatoriElement | SatoriElement[] | string | number | (SatoriElement | string)[];
+    [key: string]: unknown;
+  };
+}
 
-export interface OgModule<T = unknown> {
+export interface OgFont {
+  name: string;
+  data: Buffer | ArrayBuffer | Uint8Array;
+  weight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
+  style?: "normal" | "italic";
+}
+
+export interface OgModule {
   key: readonly string[];
-  ogInput?: z.ZodType<T>;
   /** Image width in pixels. Default: 1200. */
   width?: number;
   /** Image height in pixels. Default: 630. */
   height?: number;
-  /** Per-page template evaluated against validated input + context. */
-  template: (args: { input: T; ctx: MetaContext }) => SatoriElement;
-  /** Font registrations passed to satori. Opaque until the peer dep is wired. */
-  fonts?: readonly unknown[];
+  /** Returns true to emit a PNG for this route. Default: emit for every HTML route. */
+  match?: (route: string) => boolean;
+  /** Per-route template evaluated against context. */
+  template: (args: { ctx: MetaContext }) => SatoriElement;
+  /** Font registrations passed to satori. Required for any text rendering. */
+  fonts?: readonly OgFont[];
 }
 
+interface SatoriModule {
+  default: (
+    element: unknown,
+    options: { width: number; height: number; fonts: readonly OgFont[] },
+  ) => Promise<string>;
+}
+
+interface ResvgModule {
+  Resvg: new (
+    svg: string,
+    options?: { fitTo?: { mode: "width" | "height"; value: number } },
+  ) => { render(): { asPng(): Uint8Array } };
+}
+
+async function loadSatori(): Promise<SatoriModule | null> {
+  try {
+    return (await import("satori")) as unknown as SatoriModule;
+  } catch {
+    return null;
+  }
+}
+
+async function loadResvg(): Promise<ResvgModule | null> {
+  try {
+    return (await import("@resvg/resvg-js")) as unknown as ResvgModule;
+  } catch {
+    return null;
+  }
+}
+
+const DEFAULT_WIDTH = 1200;
+const DEFAULT_HEIGHT = 630;
+
 /** Render a single OG module to PNG bytes for the given context. */
-export function renderOg(_module: OgModule, _ctx: MetaContext): Promise<Uint8Array> {
-  throw new Error("not implemented");
+export async function renderOg(module: OgModule, ctx: MetaContext): Promise<Uint8Array> {
+  const [satoriMod, resvgMod] = await Promise.all([loadSatori(), loadResvg()]);
+  if (!satoriMod || !resvgMod) {
+    throw new Error(
+      "@rafters/astro-meta/og: satori and @resvg/resvg-js are required peer dependencies; install both to use the og subpath",
+    );
+  }
+  const element = module.template({ ctx });
+  const fonts = module.fonts ?? [];
+  const svg = await satoriMod.default(element, {
+    width: module.width ?? DEFAULT_WIDTH,
+    height: module.height ?? DEFAULT_HEIGHT,
+    fonts,
+  });
+  const resvg = new resvgMod.Resvg(svg);
+  return resvg.render().asPng();
+}
+
+/** Slug a route for use as a filename: "/" -> "index", "/about" -> "about", "/blog/post-1" -> "blog/post-1". */
+export function ogSlugForRoute(route: string): string {
+  const trimmed = route.replace(/^\/+|\/+$/g, "");
+  return trimmed.length === 0 ? "index" : trimmed;
 }
