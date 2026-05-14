@@ -1,0 +1,113 @@
+import { describe, it, expect } from "vitest";
+import { collectSchemas, mergeGraph, renderJsonLd, renderSchemaScript } from "../src/schema.js";
+import type { SchemaModule } from "../src/schema.js";
+
+const ctx = { site: { url: "https://example.com", name: "Example" }, page: { route: "/" } };
+
+describe("renderJsonLd", () => {
+  it("renders a single object with @context prepended", () => {
+    const out = renderJsonLd({ "@type": "Organization", name: "Example" });
+    expect(out).toBe('{"@context":"https://schema.org","@type":"Organization","name":"Example"}');
+  });
+
+  it("renders an array as @graph", () => {
+    const out = renderJsonLd([
+      { "@type": "Organization", name: "Org" },
+      { "@type": "Person", name: "Sean" },
+    ]);
+    const parsed = JSON.parse(out);
+    expect(parsed["@context"]).toBe("https://schema.org");
+    expect(parsed["@graph"]).toHaveLength(2);
+    expect(parsed["@graph"][0]).toEqual({ "@type": "Organization", name: "Org" });
+  });
+});
+
+describe("mergeGraph", () => {
+  it("merges objects sharing an @id, last write wins", () => {
+    const out = mergeGraph([
+      { "@type": "Person", "@id": "#sean", name: "Sean" },
+      { "@type": "Person", "@id": "#sean", knowsAbout: ["astro"] },
+    ]);
+    const graph = (out["@graph"] as { "@id": string }[]) ?? [];
+    expect(graph).toHaveLength(1);
+    expect(graph[0]).toEqual({
+      "@type": "Person",
+      "@id": "#sean",
+      name: "Sean",
+      knowsAbout: ["astro"],
+    });
+  });
+
+  it("keeps anonymous objects in order alongside id'd ones", () => {
+    const out = mergeGraph([
+      { "@type": "Article", headline: "A1" },
+      { "@type": "Organization", "@id": "#org", name: "Org" },
+      { "@type": "Article", headline: "A2" },
+    ]);
+    const graph = (out["@graph"] as { "@type": string }[]) ?? [];
+    expect(graph).toHaveLength(3);
+  });
+});
+
+describe("collectSchemas", () => {
+  it("collects from multiple modules, normalizing arrays and async returns", async () => {
+    const m1: SchemaModule = {
+      key: ["org"],
+      schema: () => ({ "@type": "Organization", name: "Org" }),
+    };
+    const m2: SchemaModule = {
+      key: ["site"],
+      schema: () => Promise.resolve([{ "@type": "WebSite", url: "https://example.com" }]),
+    };
+    const out = await collectSchemas([m1, m2], ctx);
+    expect(out).toHaveLength(2);
+    expect(out[0]?.["@type"]).toBe("Organization");
+    expect(out[1]?.["@type"]).toBe("WebSite");
+  });
+
+  it("supports modules returning an empty array (route-scoped opt out)", async () => {
+    const m: SchemaModule = {
+      key: ["article"],
+      schema: ({ ctx: { page } }) =>
+        page?.route?.startsWith("/blog/") ? { "@type": "Article" } : [],
+    };
+    const onHome = await collectSchemas([m], ctx);
+    expect(onHome).toHaveLength(0);
+    const onBlog = await collectSchemas([m], {
+      site: ctx.site,
+      page: { route: "/blog/post" },
+    });
+    expect(onBlog).toHaveLength(1);
+  });
+
+  it("throws when a module emits an object without @type", async () => {
+    const m: SchemaModule = {
+      key: ["broken"],
+      schema: () => ({ "@type": "" }),
+    };
+    await expect(collectSchemas([m], ctx)).rejects.toThrow(/string @type/);
+  });
+});
+
+describe("renderSchemaScript", () => {
+  it("returns the empty string for empty input", () => {
+    expect(renderSchemaScript([])).toBe("");
+  });
+
+  it("renders a single-object script tag", () => {
+    const out = renderSchemaScript([{ "@type": "Organization", name: "Org" }]);
+    expect(out).toContain('<script type="application/ld+json">');
+    expect(out).toContain('"@type":"Organization"');
+    expect(out).toContain("</script>");
+  });
+
+  it("renders multiple objects under @graph", () => {
+    const out = renderSchemaScript([
+      { "@type": "Organization", name: "Org" },
+      { "@type": "Person", name: "Sean" },
+    ]);
+    expect(out).toContain('"@graph"');
+    expect(out).toContain('"Organization"');
+    expect(out).toContain('"Person"');
+  });
+});
