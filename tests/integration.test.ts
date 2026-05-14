@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { astroMeta } from "../src/astro.js";
 import { defineSite } from "../src/index.js";
 
@@ -374,6 +374,45 @@ describe("astroMeta integration", () => {
     expect(home).not.toContain('"WebPage"');
     expect(about).toContain('"Organization"');
     expect(about).toContain('"WebPage"');
+  });
+
+  it("build:done renders OG PNGs and injects og:image meta", async () => {
+    vi.doMock("satori", () => ({
+      default: async () => '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+    }));
+    vi.doMock("@resvg/resvg-js", () => ({
+      Resvg: class {
+        render() {
+          return { asPng: () => new Uint8Array([0x89, 0x50, 0x4e, 0x47]) };
+        }
+      },
+    }));
+    const indexPath = join(distDir, "index.html");
+    writeFileSync(
+      indexPath,
+      "<!doctype html><html><head><title>Home</title></head><body></body></html>",
+      "utf-8",
+    );
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      og: {
+        modules: [
+          {
+            key: ["default"],
+            template: () => ({ type: "div", props: {} }),
+          },
+        ],
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "og/index.png"))).toBe(true);
+    const html = readFileSync(indexPath, "utf-8");
+    expect(html).toContain('<meta property="og:image" content="https://example.com/og/index.png">');
+    vi.doUnmock("satori");
+    vi.doUnmock("@resvg/resvg-js");
   });
 
   it("build:done skips llms.txt when no llmsTxt option is configured", async () => {
