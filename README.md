@@ -12,7 +12,7 @@ The integration at `/astro` wires them together.
 
 Pre-release. Designed against Astro 6.1.9+. Not yet published to npm. Trusted publishing via GitHub Actions OIDC; every release ships npm provenance attestations. If you see a version of this package on npm without provenance, do not install it.
 
-> v0.1 limitation: schema modules (the `/schema` subpath) work in SSG builds. Function references do not cross the Vite middleware boundary cleanly in server-rendered builds. The other seven subpaths have no SSG/SSR restriction.
+The integration runs only at `astro:config:setup` (validation + warnings) and `astro:build:done` (file emissions). No request-time middleware. SSG and SSR consumers behave identically.
 
 ## Install.
 
@@ -142,7 +142,7 @@ export async function collect() {
 
 ### Surfaces.
 
-Seven file-emission surfaces, three head-composition components, the root entry, and the integration:
+Five file-emission surfaces, three head-composition components, two type/helper subpaths, the root entry, and the integration:
 
 | Surface    | Subpath                            | What it emits                                                                                                                                                                                    |
 | ---------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -161,7 +161,9 @@ The integration writes file artifacts only. It never reads or mutates generated 
 
 ### Modules.
 
-A module is a typed object with a hierarchical `key` and a pure derivation function from context to the emitted artifact. Sitemap, llms-txt, og, and audit each accept a `sources` or `modules` array in the integration options; those arrays are where modules register. Schema composition is consumer-side in the layout using `mergeGraph` and `<SchemaScript>`; the integration options accept no `schema` key.
+The file-emission surfaces take typed inputs in the integration options. `sitemap.sources`, `llmsTxt.sources`, and `og.modules` each take an array of typed objects with a hierarchical `key` and a derivation function from context to the emitted artifact. `audit.rules` takes an array of typed rule objects with a per-route check function. The four arrays are the integration's only registration surface.
+
+Schema composition is consumer-side in the layout using `mergeGraph` and `<SchemaScript>`; the integration accepts no `schema` option because the script tag belongs in the layout, not in post-build output.
 
 ### Hierarchical keys.
 
@@ -209,7 +211,7 @@ Three sibling packages. Each does one thing.
 
 ### `@rafters/astro-data`: loaders and actions.
 
-[`@rafters/astro-data`](https://github.com/rafters-studio/astro-data) is the read/write/cache/revalidate contract for runtime data: loaders, actions, hierarchical cache, revalidation. astro-meta is the build-time emission contract. A single content shape can feed both. The same Zod schema validates the loader input that hydrates an island and the schema module input that emits the JSON-LD for that page. The two packages share the hierarchical key convention intentionally.
+[`@rafters/astro-data`](https://github.com/rafters-studio/astro-data) is the read/write/cache/revalidate contract for runtime data: loaders, actions, hierarchical cache, revalidation. astro-meta is the build-time emission contract. A single content collection can feed both: the same entry that hydrates an island via `astro-data` is the entry the layout passes to `mergeGraph` and `<SchemaScript>` to emit the JSON-LD. The two packages share the hierarchical key convention so module organization stays consistent across the build and runtime sides.
 
 ### eavesdrop: discourse ingestion and citation tracking.
 
