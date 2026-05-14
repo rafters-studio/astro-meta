@@ -34,33 +34,24 @@ Install only what the site uses. `satori` and `@resvg/resvg-js` are dynamic-impo
 
 ## Quickstart.
 
-Declare a shared site identity and import it in both the config and the layout:
-
-```ts
-// src/site.ts
-import { defineSite } from "@rafters/astro-meta";
-
-export const site = defineSite({
-  url: "https://example.com",
-  name: "Example",
-  description: "Example marketing site",
-  locale: "en-US",
-});
-```
-
-Register the integration in `astro.config.mjs`:
+Register the integration with an inline `SiteIdentity` in `astro.config.mjs`. The same identity is exposed to layouts via the `virtual:astro-meta/site` module; there is no separate site config file.
 
 ```ts
 // astro.config.mjs
 import { defineConfig } from "astro/config";
 import { astroMeta } from "@rafters/astro-meta/astro";
-import { site } from "./src/site.js";
+import { defineSite } from "@rafters/astro-meta";
 
 export default defineConfig({
   site: "https://example.com",
   integrations: [
     astroMeta({
-      site,
+      site: defineSite({
+        url: "https://example.com",
+        name: "Example",
+        description: "Example marketing site",
+        locale: "en-US",
+      }),
       robots: {
         rules: [{ userAgent: "*", allow: ["/"] }],
         contentSignals: { search: "yes", aiInput: "yes", aiTrain: "no" },
@@ -72,7 +63,7 @@ export default defineConfig({
 
 The `site` option is the only required field. `robots`, `sitemap`, `llmsTxt`, `og`, and `audit` are independent opt-ins; configure only the surfaces this site actually emits.
 
-Compose head tags in a layout using the three components the package ships:
+Compose head tags in a layout using the three components the package ships. The components default their `site` prop from `virtual:astro-meta/site`; layouts pass overrides only when they need a per-page variant.
 
 ```astro
 ---
@@ -82,7 +73,7 @@ import SchemaScript from "@rafters/astro-meta/components/SchemaScript.astro";
 import OgImage from "@rafters/astro-meta/components/OgImage.astro";
 import { mergeGraph } from "@rafters/astro-meta/schema";
 import { defineEntities } from "@rafters/astro-meta/entities";
-import { site } from "../site.js";
+import { site } from "virtual:astro-meta/site";
 
 export interface Props {
   pageTitle?: string;
@@ -109,9 +100,9 @@ const graph = mergeGraph([
 ]);
 ---
 <head>
-  <SiteMeta site={site} title={pageTitle} description={pageDescription} />
+  <SiteMeta title={pageTitle} description={pageDescription} />
   <SchemaScript graph={graph} />
-  <OgImage site={site} />
+  <OgImage />
 </head>
 ```
 

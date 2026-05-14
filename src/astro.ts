@@ -38,11 +38,14 @@ export interface AstroMetaOptions {
   audit?: { rules?: readonly AuditRule[]; threshold?: number; failBuild?: boolean };
 }
 
+const VIRTUAL_SITE_ID = "virtual:astro-meta/site";
+const VIRTUAL_SITE_RESOLVED = "\0virtual:astro-meta/site";
+
 export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
   return {
     name: "@rafters/astro-meta",
     hooks: {
-      "astro:config:setup": ({ logger }) => {
+      "astro:config:setup": ({ logger, updateConfig }) => {
         if (!isAbsoluteUrl(opts.site.url)) {
           throw new Error(
             `@rafters/astro-meta: site.url must be an absolute http(s) URL (got: ${opts.site.url})`,
@@ -50,6 +53,27 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         }
         warnIfEmpty(opts, logger);
         warnOnUnknownCrawlers(opts, logger);
+
+        const siteJson = JSON.stringify(opts.site);
+        updateConfig({
+          vite: {
+            plugins: [
+              {
+                name: "@rafters/astro-meta:virtual-site",
+                resolveId(id: string) {
+                  if (id === VIRTUAL_SITE_ID) return VIRTUAL_SITE_RESOLVED;
+                  return undefined;
+                },
+                load(id: string) {
+                  if (id === VIRTUAL_SITE_RESOLVED) {
+                    return `export const site = ${siteJson};`;
+                  }
+                  return undefined;
+                },
+              },
+            ],
+          },
+        });
       },
 
       "astro:build:done": async ({ dir, logger }) => {

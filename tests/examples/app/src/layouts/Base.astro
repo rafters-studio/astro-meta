@@ -3,7 +3,7 @@ import SiteMeta from "@rafters/astro-meta/components/SiteMeta.astro";
 import SchemaScript from "@rafters/astro-meta/components/SchemaScript.astro";
 import { mergeGraph } from "@rafters/astro-meta/schema";
 import { defineEntities } from "@rafters/astro-meta/entities";
-import { site } from "../site.js";
+import { site } from "virtual:astro-meta/site";
 
 export interface Props {
   pageTitle?: string;
@@ -40,7 +40,7 @@ const graph = mergeGraph([
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle ?? site.name}</title>
-    <SiteMeta site={site} title={pageTitle} description={pageDescription} />
+    <SiteMeta title={pageTitle} description={pageDescription} />
     <SchemaScript graph={graph} />
   </head>
   <body>
