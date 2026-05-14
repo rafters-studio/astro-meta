@@ -2,7 +2,7 @@
 
 Build-time artifacts for crawlers and LLMs. Astro 6 edition.
 
-Astro 6 ships pages, server islands, and Actions. It does not ship a coherent emission contract for the artifacts every site deploying in 2025 is expected to produce: JSON-LD, `llms.txt`, `robots.txt` with a maintained AI-crawler matrix, sitemap with hreflang, per-page OG images, and a build-time check that the resulting HTML is actually legible to a crawler. This package is that contract.
+Astro 6 ships pages, server islands, and Actions. It does not ship a coherent emission contract for the artifacts every site deploying in 2026 is expected to produce: JSON-LD, `llms.txt`, `robots.txt` with a maintained AI-crawler matrix, sitemap with hreflang, per-page OG images, and a build-time check that the resulting HTML is actually legible to a crawler. This package is that contract.
 
 Not a plugin bundle. One subpath per artifact, opt into what the site actually needs.
 
