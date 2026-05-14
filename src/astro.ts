@@ -11,10 +11,12 @@
 // v0.1 ships the minimum runtime: site-meta middleware + robots/sitemap stubs.
 // Subsequent issues fill schema, entity-graph, llms-txt, og, audit.
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
+import { posix as posixPath } from "node:path";
 import type { AstroIntegration } from "astro";
 import type { SiteIdentity } from "./index.js";
 import type { SchemaModule } from "./schema.js";
+import { collectSchemas, renderSchemaScript } from "./schema.js";
 import type { LlmsTxtSource } from "./llms-txt.js";
 import { buildLlmsTxt } from "./llms-txt.js";
 import type { RobotsConfig } from "./robots.js";
@@ -23,7 +25,7 @@ import type { SitemapSource } from "./sitemap.js";
 import { buildSitemapFiles, collectEntries, renderSitemap } from "./sitemap.js";
 import type { OgModule } from "./og.js";
 import type { AuditRule } from "./audit.js";
-import { isAbsoluteUrl } from "./internal/render-site-meta.js";
+import { injectIntoHead, isAbsoluteUrl } from "./internal/render-site-meta.js";
 
 export interface AstroMetaOptions {
   site: SiteIdentity;
@@ -52,7 +54,7 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         warnIfEmpty(opts, logger);
         warnOnUnknownCrawlers(opts, logger);
 
-        const serialized = JSON.stringify(opts);
+        const serialized = JSON.stringify({ site: opts.site });
         updateConfig({
           vite: {
             plugins: [
@@ -106,6 +108,11 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         if (headersBody.length > 0) {
           await writeFile(`${outDir}_headers`, headersBody, "utf-8");
           written.push("_headers");
+        }
+
+        const schemaCount = await injectSchemasIntoHtml(opts, outDir);
+        if (schemaCount > 0) {
+          written.push(`schema(${schemaCount} route(s))`);
         }
 
         logger.info(`wrote ${written.join(", ")}`);
@@ -181,6 +188,38 @@ async function buildLlmsTxtForOpts(
     files.push({ path: "llms-full.txt", content: result.full });
   }
   return files;
+}
+
+function routeFromHtmlPath(htmlPath: string, outDir: string): string {
+  const rel = htmlPath.startsWith(outDir) ? htmlPath.slice(outDir.length) : htmlPath;
+  const stripped = posixPath.normalize(`/${rel}`).replace(/index\.html$/, "");
+  return stripped.length === 0 ? "/" : stripped;
+}
+
+async function injectSchemasIntoHtml(opts: AstroMetaOptions, outDir: string): Promise<number> {
+  if (!opts.schema || opts.schema.modules.length === 0) return 0;
+  const htmlFiles: string[] = [];
+  for await (const entry of glob("**/*.html", { cwd: outDir })) {
+    htmlFiles.push(entry);
+  }
+  let touched = 0;
+  await Promise.all(
+    htmlFiles.map(async (rel) => {
+      const route = routeFromHtmlPath(rel, "");
+      const ctx = { site: opts.site, page: { route } };
+      const objects = await collectSchemas(opts.schema?.modules ?? [], ctx);
+      if (objects.length === 0) return;
+      const script = renderSchemaScript(objects);
+      const filePath = `${outDir}${rel}`;
+      const html = await readFile(filePath, "utf-8");
+      const injected = injectIntoHead(html, script);
+      if (injected !== html) {
+        await writeFile(filePath, injected, "utf-8");
+        touched += 1;
+      }
+    }),
+  );
+  return touched;
 }
 
 async function buildSitemapForOpts(

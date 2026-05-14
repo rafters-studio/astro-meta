@@ -1,11 +1,12 @@
-// @rafters/astro-meta/schema — typed JSON-LD authoring
+// @rafters/astro-meta/schema — JSON-LD authoring
 //
-// Schema.org modules declared per content shape. The integration renders
-// each module to a <script type="application/ld+json"> block in <head>.
-// v0.2 will type the schema against schema-dts; v0.1 takes a structural
-// type and trusts the author.
+// Schema.org modules emit one or more typed objects per route. The integration
+// merges every module's output into a single `@graph` block and injects it
+// into <head> as one <script type="application/ld+json"> tag.
+//
+// v0.1 ships a structural JsonLdObject type and trusts the author. v0.2 will
+// layer typed Schema.org via schema-dts when the peer is installed.
 
-import type { z } from "astro/zod";
 import type { MetaContext } from "./index.js";
 
 export type JsonLdValue =
@@ -18,19 +19,91 @@ export type JsonLdValue =
 
 export type JsonLdObject = { "@type": string; [key: string]: JsonLdValue };
 
-export interface SchemaModule<T = unknown> {
+const JSON_LD_CONTEXT = "https://schema.org";
+
+export interface SchemaModule {
+  /** Hierarchical key for composition and audit. */
   key: readonly string[];
-  schemaInput?: z.ZodType<T>;
-  /** Pure derivation from validated input + context to one or more Schema.org objects. */
-  schema: (args: { input: T; ctx: MetaContext }) => JsonLdObject | JsonLdObject[];
+  /**
+   * Pure derivation from MetaContext to one or more Schema.org objects. May
+   * return an empty array when the module does not apply to the current
+   * route. Async is allowed for content-collection lookups.
+   */
+  schema: (args: {
+    ctx: MetaContext;
+  }) => JsonLdObject | JsonLdObject[] | Promise<JsonLdObject | JsonLdObject[]>;
 }
 
-/** Render a Schema.org object (or array) to a JSON-LD script tag's inner JSON. */
-export function renderJsonLd(_value: JsonLdObject | JsonLdObject[]): string {
-  throw new Error("not implemented");
+function assertHasType(value: JsonLdObject, key: readonly string[]): void {
+  if (typeof value["@type"] !== "string" || value["@type"].length === 0) {
+    throw new Error(
+      `@rafters/astro-meta/schema: module [${key.join(", ")}] emitted an object without a string @type`,
+    );
+  }
 }
 
-/** Combine multiple Schema.org objects into a single @graph block with shared @id linking. */
-export function mergeGraph(_objects: readonly JsonLdObject[]): JsonLdObject {
-  throw new Error("not implemented");
+/** Render one or more Schema.org objects to a JSON-LD JSON string. */
+export function renderJsonLd(value: JsonLdObject | JsonLdObject[]): string {
+  if (Array.isArray(value)) {
+    return JSON.stringify({ "@context": JSON_LD_CONTEXT, "@graph": value });
+  }
+  const { "@type": atType, ...rest } = value;
+  return JSON.stringify({ "@context": JSON_LD_CONTEXT, "@type": atType, ...rest });
+}
+
+/**
+ * Combine multiple Schema.org objects into a single @graph object. Dedups by
+ * `@id`: when two objects share an `@id`, the later one wins for non-`@id`
+ * fields. Objects without an `@id` are preserved in input order.
+ */
+export function mergeGraph(objects: readonly JsonLdObject[]): JsonLdObject {
+  const byId = new Map<string, JsonLdObject>();
+  const anonymous: JsonLdObject[] = [];
+  for (const obj of objects) {
+    const id = obj["@id"];
+    if (typeof id === "string" && id.length > 0) {
+      const existing = byId.get(id);
+      byId.set(id, existing ? { ...existing, ...obj } : obj);
+    } else {
+      anonymous.push(obj);
+    }
+  }
+  const graph: JsonLdValue[] = [...byId.values(), ...anonymous] as JsonLdValue[];
+  return { "@type": "Graph", "@context": JSON_LD_CONTEXT, "@graph": graph } as JsonLdObject;
+}
+
+/**
+ * Run every schema module for the given context, validate the @type fields,
+ * and return a flat list of emitted objects.
+ */
+export async function collectSchemas(
+  modules: readonly SchemaModule[],
+  ctx: MetaContext,
+): Promise<JsonLdObject[]> {
+  const results = await Promise.all(
+    modules.map(async (m) => ({ m, value: await m.schema({ ctx }) })),
+  );
+  const out: JsonLdObject[] = [];
+  for (const { m, value } of results) {
+    const arr = Array.isArray(value) ? value : [value];
+    for (const obj of arr) {
+      assertHasType(obj, m.key);
+      out.push(obj);
+    }
+  }
+  return out;
+}
+
+/**
+ * Render the collected schemas as a single <script type="application/ld+json">
+ * block ready to inject into <head>. Returns the empty string when no objects
+ * were emitted so callers can safely concatenate.
+ */
+export function renderSchemaScript(objects: readonly JsonLdObject[]): string {
+  if (objects.length === 0) return "";
+  const payload =
+    objects.length === 1
+      ? renderJsonLd(objects[0] as JsonLdObject)
+      : renderJsonLd(objects as JsonLdObject[]);
+  return `<script type="application/ld+json">${payload}</script>`;
 }
