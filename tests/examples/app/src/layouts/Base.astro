@@ -1,0 +1,49 @@
+---
+import SiteMeta from "@rafters/astro-meta/components/SiteMeta.astro";
+import SchemaScript from "@rafters/astro-meta/components/SchemaScript.astro";
+import { mergeGraph } from "@rafters/astro-meta/schema";
+import { defineEntities } from "@rafters/astro-meta/entities";
+import { site } from "../site.js";
+
+export interface Props {
+  pageTitle?: string;
+  pageDescription?: string;
+}
+
+const { pageTitle, pageDescription } = Astro.props;
+
+const entities = defineEntities({
+  organization: {
+    "@id": `${site.url}#org`,
+    name: site.name,
+    url: site.url,
+  },
+});
+
+const orgGraph = await entities.schema({ ctx: { site } });
+const graph = mergeGraph([
+  ...(Array.isArray(orgGraph) ? orgGraph : [orgGraph]),
+  {
+    "@type": "WebSite",
+    "@id": `${site.url}#website`,
+    url: site.url,
+    name: site.name,
+    description: site.description ?? "",
+    publisher: { "@id": `${site.url}#org` },
+  },
+]);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle ?? site.name}</title>
+    <SiteMeta site={site} title={pageTitle} description={pageDescription} />
+    <SchemaScript graph={graph} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

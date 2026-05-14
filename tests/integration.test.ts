@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -73,36 +73,10 @@ describe("astroMeta integration", () => {
     ).toThrow(/absolute http\(s\) URL/);
   });
 
-  it("config:setup registers the post-order middleware", () => {
-    const integ = astroMeta({
-      site: defineSite({ url: "https://example.com", name: "Example" }),
-    });
-    let middlewareEntrypoint: URL | undefined;
-    let middlewareOrder: string | undefined;
-    const args = {
-      addMiddleware: (m: { entrypoint: URL; order: string }) => {
-        middlewareEntrypoint = m.entrypoint;
-        middlewareOrder = m.order;
-      },
-      updateConfig: () => {},
-      command: "build",
-      logger: {
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-        debug: () => {},
-      },
-    };
-    getHook(integ, "astro:config:setup")(args as unknown as Record<string, unknown>);
-    expect(middlewareEntrypoint).toBeDefined();
-    expect(middlewareEntrypoint?.pathname).toMatch(/middleware\.js$/);
-    expect(middlewareOrder).toBe("post");
-  });
-
   it("config:setup warns when a surface array is empty", () => {
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),
-      schema: { modules: [] },
+      sitemap: { sources: [] },
     });
     const warnings: string[] = [];
     const args = {
@@ -118,7 +92,7 @@ describe("astroMeta integration", () => {
     };
     getHook(integ, "astro:config:setup")(args as unknown as Record<string, unknown>);
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("schema");
+    expect(warnings[0]).toContain("sitemap");
   });
 
   it("build:done writes robots.txt and sitemap.xml to dist", async () => {
@@ -327,56 +301,7 @@ describe("astroMeta integration", () => {
     expect(index).not.toContain("Private");
   });
 
-  it("build:done injects @graph script into emitted HTML files for schema modules", async () => {
-    const indexPath = join(distDir, "index.html");
-    const aboutDir = join(distDir, "about");
-    mkdirSync(aboutDir);
-    writeFileSync(
-      indexPath,
-      "<!doctype html><html><head><title>Home</title></head><body></body></html>",
-      "utf-8",
-    );
-    writeFileSync(
-      join(aboutDir, "index.html"),
-      "<!doctype html><html><head><title>About</title></head><body></body></html>",
-      "utf-8",
-    );
-    const integ = astroMeta({
-      site: defineSite({ url: "https://example.com", name: "Example" }),
-      schema: {
-        modules: [
-          {
-            key: ["org"],
-            schema: ({ ctx }) => ({
-              "@type": "Organization",
-              "@id": `${ctx.site.url}#org`,
-              name: ctx.site.name,
-            }),
-          },
-          {
-            key: ["page"],
-            schema: ({ ctx }) =>
-              ctx.page?.route === "/about/"
-                ? { "@type": "WebPage", url: `${ctx.site.url}${ctx.page.route}` }
-                : [],
-          },
-        ],
-      },
-    });
-    await getHook(
-      integ,
-      "astro:build:done",
-    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
-    const home = readFileSync(indexPath, "utf-8");
-    const about = readFileSync(join(aboutDir, "index.html"), "utf-8");
-    expect(home).toContain('<script type="application/ld+json">');
-    expect(home).toContain('"Organization"');
-    expect(home).not.toContain('"WebPage"');
-    expect(about).toContain('"Organization"');
-    expect(about).toContain('"WebPage"');
-  });
-
-  it("build:done renders OG PNGs and injects og:image meta", async () => {
+  it("build:done renders OG PNGs without mutating HTML", async () => {
     vi.doMock("satori", () => ({
       default: async () => '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
     }));
@@ -388,11 +313,9 @@ describe("astroMeta integration", () => {
       },
     }));
     const indexPath = join(distDir, "index.html");
-    writeFileSync(
-      indexPath,
-      "<!doctype html><html><head><title>Home</title></head><body></body></html>",
-      "utf-8",
-    );
+    const originalHtml =
+      "<!doctype html><html><head><title>Home</title></head><body></body></html>";
+    writeFileSync(indexPath, originalHtml, "utf-8");
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),
       og: {
@@ -410,7 +333,7 @@ describe("astroMeta integration", () => {
     )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
     expect(existsSync(join(distDir, "og/index.png"))).toBe(true);
     const html = readFileSync(indexPath, "utf-8");
-    expect(html).toContain('<meta property="og:image" content="https://example.com/og/index.png">');
+    expect(html).toBe(originalHtml);
     vi.doUnmock("satori");
     vi.doUnmock("@resvg/resvg-js");
   });

@@ -1,0 +1,42 @@
+---
+// @rafters/astro-meta/components/SiteMeta.astro
+//
+// Site-level head fragment: generator, canonical URL, Open Graph core,
+// Twitter card, description, locale. Drop into a layout's <head>; takes the
+// site identity and (optionally) per-page overrides.
+
+import type { SiteIdentity } from "../index.js";
+
+export interface Props {
+  site: SiteIdentity;
+  /** Route for canonical and og:url. Defaults to Astro.url.pathname. */
+  route?: string;
+  /** Per-page title override. Falls back to site.name. */
+  title?: string;
+  /** Per-page description override. Falls back to site.description. */
+  description?: string;
+}
+
+const { site, route = Astro.url.pathname, title, description } = Astro.props;
+const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
+const pageUrl = `${site.url}${normalizedRoute}`;
+const effectiveTitle = title ?? site.name;
+const effectiveDescription = description ?? site.description;
+---
+
+<meta name="generator" content="@rafters/astro-meta" />
+<link rel="canonical" href={pageUrl} />
+<meta property="og:site_name" content={site.name} />
+<meta property="og:title" content={effectiveTitle} />
+<meta property="og:url" content={pageUrl} />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+{
+  effectiveDescription && (
+    <>
+      <meta name="description" content={effectiveDescription} />
+      <meta property="og:description" content={effectiveDescription} />
+    </>
+  )
+}
+{site.locale && <meta property="og:locale" content={site.locale} />}

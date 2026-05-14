@@ -42,21 +42,46 @@ function assertHasType(value: JsonLdObject, key: readonly string[]): void {
   }
 }
 
-/** Render one or more Schema.org objects to a JSON-LD JSON string. */
+/**
+ * Escape characters that would break out of a surrounding \`<script>\` tag or
+ * trip JavaScript parsers when inlining JSON into HTML. The escapes use JSON's
+ * \`\uXXXX\` form so the result still parses as the original string under
+ * \`JSON.parse\`.
+ *
+ *   \`<\` -> \`\u003c\`  blocks \`</script>\` early-close
+ *   \`>\` -> \`\u003e\`  blocks \`]]>\` in some HTML edge cases
+ *   \`&\` -> \`\u0026\`  blocks \`&\` ambiguity in some parsers
+ *   U+2028 / U+2029  block JS line-terminator interpretation
+ */
+function escapeForInlineScript(json: string): string {
+  return json
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(new RegExp("\\u2028", "g"), "\\u2028")
+    .replace(new RegExp("\\u2029", "g"), "\\u2029");
+}
+
+/** Render one or more Schema.org objects to a JSON-LD JSON string, safe for inline `<script>` injection. */
 export function renderJsonLd(value: JsonLdObject | JsonLdObject[]): string {
-  if (Array.isArray(value)) {
-    return JSON.stringify({ "@context": JSON_LD_CONTEXT, "@graph": value });
-  }
-  const { "@type": atType, ...rest } = value;
-  return JSON.stringify({ "@context": JSON_LD_CONTEXT, "@type": atType, ...rest });
+  const payload = Array.isArray(value)
+    ? { "@context": JSON_LD_CONTEXT, "@graph": value }
+    : (() => {
+        const { "@type": atType, ...rest } = value;
+        return { "@context": JSON_LD_CONTEXT, "@type": atType, ...rest };
+      })();
+  return escapeForInlineScript(JSON.stringify(payload));
 }
 
 /**
- * Combine multiple Schema.org objects into a single @graph object. Dedups by
- * `@id`: when two objects share an `@id`, the later one wins for non-`@id`
- * fields. Objects without an `@id` are preserved in input order.
+ * Combine multiple Schema.org objects into a deduped array. Two objects
+ * sharing an `@id` are merged with later-wins semantics for non-`@id`
+ * fields; objects without an `@id` are preserved in input order.
+ *
+ * Pair with `renderJsonLd` (or `<SchemaScript graph={...} />`) which wraps
+ * an array in `@context` + `@graph` automatically.
  */
-export function mergeGraph(objects: readonly JsonLdObject[]): JsonLdObject {
+export function mergeGraph(objects: readonly JsonLdObject[]): JsonLdObject[] {
   const byId = new Map<string, JsonLdObject>();
   const anonymous: JsonLdObject[] = [];
   for (const obj of objects) {
@@ -68,8 +93,7 @@ export function mergeGraph(objects: readonly JsonLdObject[]): JsonLdObject {
       anonymous.push(obj);
     }
   }
-  const graph: JsonLdValue[] = [...byId.values(), ...anonymous] as JsonLdValue[];
-  return { "@type": "Graph", "@context": JSON_LD_CONTEXT, "@graph": graph } as JsonLdObject;
+  return [...byId.values(), ...anonymous];
 }
 
 /**

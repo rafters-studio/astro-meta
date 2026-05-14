@@ -1,20 +1,15 @@
 ---
-const pageTitle = "About -- astro-meta example";
+import Base from "../layouts/Base.astro";
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{pageTitle}</title>
-  </head>
-  <body>
-    <h1>About</h1>
-    <p>
-      This is the second route in the example. The integration injects the
-      canonical URL and og:url for each route automatically.
-    </p>
-    <p><a href="/">Home</a></p>
-  </body>
-</html>
+<Base
+  pageTitle="About"
+  pageDescription="Second route demonstrating per-page title and description overrides."
+>
+  <h1>About</h1>
+  <p>
+    The second route. Per-page title and description flow through SiteMeta as
+    component props.
+  </p>
+  <p><a href="/">Home</a></p>
+</Base>
