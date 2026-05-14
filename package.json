@@ -5,6 +5,8 @@
   "keywords": [
     "aeo",
     "astro",
+    "astro-component",
+    "astro-integration",
     "geo",
     "json-ld",
     "llms-txt",
@@ -12,7 +14,8 @@
     "robots",
     "schema-org",
     "seo",
-    "sitemap"
+    "sitemap",
+    "withastro"
   ],
   "license": "MIT",
   "files": [
