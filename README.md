@@ -252,6 +252,8 @@ The category also has gaps none of the WordPress-era tools close. Nobody ships a
 
 Not a monitoring SaaS. Not a framework. A typed contract at the build boundary that the sites you already know how to write can consume one surface at a time.
 
+astro-meta is MIT-licensed because being legible to a crawler shouldn't require a consultant. Schema.org, robots, sitemap, llms.txt, the AI-crawler matrix, Cloudflare's Content-Signals header. These are the artifacts a 2026 site needs to be readable by Google, Perplexity, Claude, and the next model. They are plumbing, not strategy. Yoast Premium gates schema markup at $99 a year. pagesmith puts GEO behind a $19-per-month Pro tier. astro-meta ships the same artifacts at no charge because the alternative is a tax on being findable.
+
 ## Supply chain.
 
 This package publishes via [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) with OIDC from GitHub Actions. No long-lived `NPM_TOKEN` exists anywhere in the release pipeline. Every release ships with [npm provenance attestations](https://docs.npmjs.com/generating-provenance-statements). The release workflow is in [`.github/workflows/release.yml`](./.github/workflows/release.yml) and is the authoritative source.
