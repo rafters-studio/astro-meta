@@ -415,6 +415,58 @@ describe("astroMeta integration", () => {
     vi.doUnmock("@resvg/resvg-js");
   });
 
+  it("build:done warns when multiple OG modules match the same route", async () => {
+    vi.doMock("satori", () => ({
+      default: async () => '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+    }));
+    vi.doMock("@resvg/resvg-js", () => ({
+      Resvg: class {
+        render() {
+          return { asPng: () => new Uint8Array([0x89, 0x50, 0x4e, 0x47]) };
+        }
+      },
+    }));
+    writeFileSync(
+      join(distDir, "index.html"),
+      "<!doctype html><html><head><title>Home</title></head><body></body></html>",
+      "utf-8",
+    );
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      og: {
+        modules: [
+          {
+            key: ["blog"],
+            match: () => true,
+            template: () => ({ type: "div", props: {} }),
+          },
+          {
+            key: ["fallback"],
+            template: () => ({ type: "div", props: {} }),
+          },
+        ],
+      },
+    });
+    const warnings: string[] = [];
+    const args = {
+      ...fakeBuildDoneArgs(distDir),
+      logger: {
+        info: () => {},
+        warn: (msg: string) => warnings.push(msg),
+        error: () => {},
+        debug: () => {},
+      },
+    };
+    await getHook(integ, "astro:build:done")(args as unknown as Record<string, unknown>);
+    const collision = warnings.find((m) => m.includes("multiple modules matched"));
+    expect(collision).toBeDefined();
+    expect(collision).toContain("[blog]");
+    expect(collision).toContain("[fallback]");
+    expect(collision).toContain("/");
+    vi.doUnmock("satori");
+    vi.doUnmock("@resvg/resvg-js");
+  });
+
   it("build:done skips llms.txt when no llmsTxt option is configured", async () => {
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),

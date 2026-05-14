@@ -117,7 +117,7 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
           written.push(`schema(${schemaCount} route(s))`);
         }
 
-        const ogCount = await renderAndInjectOg(opts, outDir);
+        const ogCount = await renderAndInjectOg(opts, outDir, logger);
         if (ogCount > 0) {
           written.push(`og(${ogCount} image(s))`);
         }
@@ -249,7 +249,11 @@ async function injectSchemasIntoHtml(opts: AstroMetaOptions, outDir: string): Pr
   return touched;
 }
 
-async function renderAndInjectOg(opts: AstroMetaOptions, outDir: string): Promise<number> {
+async function renderAndInjectOg(
+  opts: AstroMetaOptions,
+  outDir: string,
+  logger: MinimalLogger,
+): Promise<number> {
   if (!opts.og || opts.og.modules.length === 0) return 0;
   const htmlFiles: string[] = [];
   for await (const entry of glob("**/*.html", { cwd: outDir })) {
@@ -265,6 +269,12 @@ async function renderAndInjectOg(opts: AstroMetaOptions, outDir: string): Promis
       if (matchingModules.length === 0) return;
       const firstModule = matchingModules[0];
       if (!firstModule) return;
+      if (matchingModules.length > 1) {
+        const keys = matchingModules.map((m) => `[${m.key.join(", ")}]`).join(", ");
+        logger.warn(
+          `og: multiple modules matched route ${route} (${keys}); using ${keys.split(", ")[0]}. Order modules from most-specific to least-specific in the modules array.`,
+        );
+      }
       const png = await renderOg(firstModule, { site: opts.site, page: { route } });
       const slug = ogSlugForRoute(route);
       const pngPath = `${outDir}og/${slug}.png`;

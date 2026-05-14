@@ -28,6 +28,15 @@ export interface OgFont {
   style?: "normal" | "italic";
 }
 
+/**
+ * v0.1 contract: one OG image per route. The integration scans `modules` in
+ * array order and emits a PNG for the first module whose `match` returns
+ * true (or has no `match`). Subsequent matches are dropped; a build-time
+ * warning names the colliding module keys.
+ *
+ * Define more-specific modules earlier in the array. Set `match` on the
+ * specific modules and leave the fallback without one.
+ */
 export interface OgModule {
   key: readonly string[];
   /** Image width in pixels. Default: 1200. */
