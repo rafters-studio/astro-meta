@@ -1,12 +1,12 @@
 # @rafters/astro-meta
 
-The xEO emission plane for Astro 6.
+Build-time artifacts for crawlers and LLMs. Astro 6 edition.
 
-Astro 6 ships pages, server islands, and Actions. It does not ship a coherent emission contract for the artifacts every site deploying in 2025 is expected to produce: JSON-LD, `llms.txt`, `robots.txt` with a maintained AI-crawler matrix, sitemap with hreflang, per-page OG images, and a build-time check that the resulting HTML is actually legible to a crawler. This package is that contract.
+Astro 6 ships pages, server islands, and Actions. It does not ship a coherent emission contract for the artifacts every site deploying in 2026 is expected to produce: JSON-LD, `llms.txt`, `robots.txt` with a maintained AI-crawler matrix, sitemap with hreflang, per-page OG images, and a build-time check that the resulting HTML is actually legible to a crawler. This package is that contract.
 
-Not a plugin bundle. A typed, per-surface emission protocol.
+Not a plugin bundle. One subpath per artifact, opt into what the site actually needs.
 
-One subpath export per surface. The integration at `/astro` wires them together.
+The integration at `/astro` wires them together.
 
 ## Status.
 
@@ -141,7 +141,7 @@ Each subpath ships a typed module shape and a renderer. The integration at `/ast
 
 ### Modules.
 
-A module is a typed object with a hierarchical `key`, an optional Zod input schema, and a pure derivation function from validated input plus context to the emitted artifact. The shape mirrors the loader and action shape in [`@rafters/astro-data`](https://github.com/rafters-studio/astro-data), kept narrow per surface so one Zod schema can feed both planes without translation.
+A module is a typed object with a hierarchical `key`, an optional Zod input schema, and a pure derivation function from validated input plus context to the emitted artifact. The shape mirrors the loader and action shape in [`@rafters/astro-data`](https://github.com/rafters-studio/astro-data), kept narrow per surface so one Zod schema can feed both packages without translation.
 
 ### Hierarchical keys.
 
@@ -185,19 +185,19 @@ Each rule emits pass, warn, or fail. The CI threshold gate fails the build when 
 
 ## Composition.
 
-Three planes. Each owns its lane.
+Three sibling packages. Each does one thing.
 
-### `@rafters/astro-data`: runtime data plane.
+### `@rafters/astro-data`: loaders and actions.
 
 [`@rafters/astro-data`](https://github.com/rafters-studio/astro-data) is the read/write/cache/revalidate contract for runtime data: loaders, actions, hierarchical cache, revalidation. astro-meta is the build-time emission contract. A single content shape can feed both. The same Zod schema validates the loader input that hydrates an island and the schema module input that emits the JSON-LD for that page. The two packages share the hierarchical key convention intentionally.
 
-### eavesdrop: observation plane.
+### eavesdrop: discourse ingestion and citation tracking.
 
 [eavesdrop](https://github.com/rafters-studio/eavesdrop) is the discourse ingestion and semantic search engine. Citation tracking, "did our content surface in ChatGPT or Perplexity last week," and share-of-voice analytics live there as source adapters. astro-meta makes the page legible. eavesdrop measures whether legibility translated into visibility. The two packages do not call each other.
 
 ### Independence.
 
-All three planes are independent. Adopt one, two, or all three. astro-meta does not require astro-data or eavesdrop; the reverse is also true.
+All three packages are independent. Adopt one, two, or all three. astro-meta does not require astro-data or eavesdrop; the reverse is also true.
 
 ## Public surface.
 
