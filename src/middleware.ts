@@ -7,9 +7,6 @@
 import type { MiddlewareHandler } from "astro";
 import { config } from "virtual:astro-meta/config";
 import { injectIntoHead, renderSiteMeta } from "./internal/render-site-meta.js";
-import type { AstroMetaOptions } from "./astro.js";
-
-const opts = config as AstroMetaOptions;
 
 export const onRequest: MiddlewareHandler = async (context, next) => {
   const response = await next();
@@ -17,7 +14,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   if (!contentType.includes("text/html")) return response;
 
   const html = await response.text();
-  const meta = renderSiteMeta(opts.site, context.url.pathname);
+  const meta = renderSiteMeta(config.site, context.url.pathname);
   const injected = injectIntoHead(html, meta);
 
   const headers = new Headers(response.headers);
