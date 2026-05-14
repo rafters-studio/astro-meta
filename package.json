@@ -1,0 +1,100 @@
+{
+  "name": "@rafters/astro-meta",
+  "version": "0.0.0",
+  "description": "The xEO emission plane for Astro 6. JSON-LD, llms.txt, robots, sitemap, OG images, and build-time GEO readability scoring. Composes with @rafters/astro-data on the data plane and eavesdrop on the observation plane.",
+  "keywords": [
+    "aeo",
+    "astro",
+    "geo",
+    "json-ld",
+    "llms-txt",
+    "rafters",
+    "robots",
+    "schema-org",
+    "seo",
+    "sitemap"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./astro": {
+      "types": "./dist/astro.d.ts",
+      "import": "./dist/astro.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.js"
+    },
+    "./llms-txt": {
+      "types": "./dist/llms-txt.d.ts",
+      "import": "./dist/llms-txt.js"
+    },
+    "./robots": {
+      "types": "./dist/robots.d.ts",
+      "import": "./dist/robots.js"
+    },
+    "./sitemap": {
+      "types": "./dist/sitemap.d.ts",
+      "import": "./dist/sitemap.js"
+    },
+    "./og": {
+      "types": "./dist/og.d.ts",
+      "import": "./dist/og.js"
+    },
+    "./audit": {
+      "types": "./dist/audit.d.ts",
+      "import": "./dist/audit.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "test": "vitest run",
+    "test:spec": "vitest run --config vitest.browser.config.ts",
+    "test:all": "pnpm test && pnpm test:spec",
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "@vitest/browser": "^4.1.0",
+    "astro": "^6.1.9",
+    "lefthook": "^2.1.4",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
+    "playwright": "^1.49.0",
+    "satori": "^0.13.0",
+    "schema-dts": "^1.1.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "astro": "^6.0.0",
+    "satori": "^0.13.0",
+    "schema-dts": "^1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "satori": {
+      "optional": true
+    },
+    "schema-dts": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.32.1"
+}
