@@ -208,6 +208,59 @@ describe("astroMeta integration", () => {
     expect(existsSync(join(distDir, "_headers"))).toBe(false);
   });
 
+  it("build:done writes sitemap entries from configured sources", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      sitemap: {
+        sources: [
+          {
+            key: ["pages"],
+            collect: () => [{ url: "https://example.com/" }, { url: "https://example.com/about" }],
+          },
+        ],
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    const sitemap = readFileSync(join(distDir, "sitemap.xml"), "utf-8");
+    expect(sitemap).toContain("<loc>https://example.com/</loc>");
+    expect(sitemap).toContain("<loc>https://example.com/about</loc>");
+  });
+
+  it("build:done splits sitemap into chunks plus index when count exceeds chunkSize", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      sitemap: {
+        chunkSize: 2,
+        sources: [
+          {
+            key: ["pages"],
+            collect: () => [
+              { url: "https://example.com/a" },
+              { url: "https://example.com/b" },
+              { url: "https://example.com/c" },
+              { url: "https://example.com/d" },
+              { url: "https://example.com/e" },
+            ],
+          },
+        ],
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "sitemap-0.xml"))).toBe(true);
+    expect(existsSync(join(distDir, "sitemap-1.xml"))).toBe(true);
+    expect(existsSync(join(distDir, "sitemap-2.xml"))).toBe(true);
+    const index = readFileSync(join(distDir, "sitemap.xml"), "utf-8");
+    expect(index).toContain("<sitemapindex");
+    expect(index).toContain("https://example.com/sitemap-0.xml");
+    expect(index).toContain("https://example.com/sitemap-2.xml");
+  });
+
   it("config:setup warns when a rule names an agent outside the curated matrix", () => {
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),
