@@ -1,7 +1,7 @@
 {
   "name": "@rafters/astro-meta",
   "version": "0.0.0",
-  "description": "The xEO emission plane for Astro 6. JSON-LD, llms.txt, robots, sitemap, OG images, and build-time GEO readability scoring. Composes with @rafters/astro-data on the data plane and eavesdrop on the observation plane.",
+  "description": "Build-time artifacts for crawlers and LLMs on Astro 6: JSON-LD, llms.txt, robots, sitemap, OG images, and build-time GEO readability scoring. Composes with @rafters/astro-data.",
   "keywords": [
     "aeo",
     "astro",
