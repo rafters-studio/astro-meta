@@ -35,6 +35,10 @@
       "types": "./dist/schema.d.ts",
       "import": "./dist/schema.js"
     },
+    "./entities": {
+      "types": "./dist/entities.d.ts",
+      "import": "./dist/entities.js"
+    },
     "./llms-txt": {
       "types": "./dist/llms-txt.d.ts",
       "import": "./dist/llms-txt.js"
