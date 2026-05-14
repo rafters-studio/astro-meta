@@ -26,6 +26,7 @@ import { buildSitemapFiles, collectEntries, renderSitemap } from "./sitemap.js";
 import type { OgModule } from "./og.js";
 import { ogSlugForRoute, renderOg } from "./og.js";
 import type { AuditRule } from "./audit.js";
+import { defaultRules, parseRoute, runAudit } from "./audit.js";
 import { injectIntoHead, isAbsoluteUrl } from "./internal/render-site-meta.js";
 
 export interface AstroMetaOptions {
@@ -119,6 +120,26 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         const ogCount = await renderAndInjectOg(opts, outDir);
         if (ogCount > 0) {
           written.push(`og(${ogCount} image(s))`);
+        }
+
+        const auditReport = await runAuditForOpts(opts, outDir, logger);
+        if (auditReport) {
+          await writeFile(
+            `${outDir}_geo-audit.json`,
+            JSON.stringify(auditReport, null, 2),
+            "utf-8",
+          );
+          written.push("_geo-audit.json");
+          if (opts.audit?.failBuild && opts.audit.threshold !== undefined) {
+            const failing = auditReport.routes.filter(
+              (r) => r.score < (opts.audit?.threshold ?? 0),
+            );
+            if (failing.length > 0) {
+              throw new Error(
+                `@rafters/astro-meta/audit: ${failing.length} route(s) scored below threshold ${opts.audit.threshold}: ${failing.map((f) => `${f.route}=${f.score}`).join(", ")}`,
+              );
+            }
+          }
         }
 
         logger.info(`wrote ${written.join(", ")}`);
@@ -258,6 +279,32 @@ async function renderAndInjectOg(opts: AstroMetaOptions, outDir: string): Promis
     }),
   );
   return written;
+}
+
+async function runAuditForOpts(
+  opts: AstroMetaOptions,
+  outDir: string,
+  logger: MinimalLogger,
+): Promise<ReturnType<typeof runAudit> | null> {
+  if (!opts.audit) return null;
+  const htmlFiles: string[] = [];
+  for await (const entry of glob("**/*.html", { cwd: outDir })) {
+    htmlFiles.push(entry);
+  }
+  if (htmlFiles.length === 0) return null;
+  const routes = await Promise.all(
+    htmlFiles.map(async (rel) => {
+      const route = routeFromHtmlPath(rel, "");
+      const html = await readFile(`${outDir}${rel}`, "utf-8");
+      return parseRoute(route, html);
+    }),
+  );
+  const rules = opts.audit.rules ?? defaultRules;
+  const report = runAudit(routes, rules);
+  for (const r of report.routes) {
+    if (r.score < 50) logger.warn(`audit: ${r.route} scored ${r.score}/100`);
+  }
+  return report;
 }
 
 async function buildSitemapForOpts(
