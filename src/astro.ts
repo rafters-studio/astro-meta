@@ -16,6 +16,7 @@ import type { AstroIntegration } from "astro";
 import type { SiteIdentity } from "./index.js";
 import type { SchemaModule } from "./schema.js";
 import type { LlmsTxtSource } from "./llms-txt.js";
+import { buildLlmsTxt } from "./llms-txt.js";
 import type { RobotsConfig } from "./robots.js";
 import { findUnknownAgents, renderContentSignalsHeadersFile, renderRobots } from "./robots.js";
 import type { SitemapSource } from "./sitemap.js";
@@ -90,7 +91,16 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
           sitemapFiles.map((file) => writeFile(`${outDir}${file.path}`, file.content, "utf-8")),
         );
 
-        const written = ["robots.txt", ...sitemapFiles.map((f) => f.path)];
+        const llmsFiles = await buildLlmsTxtForOpts(opts);
+        await Promise.all(
+          llmsFiles.map((file) => writeFile(`${outDir}${file.path}`, file.content, "utf-8")),
+        );
+
+        const written = [
+          "robots.txt",
+          ...sitemapFiles.map((f) => f.path),
+          ...llmsFiles.map((f) => f.path),
+        ];
 
         const headersBody = renderHeadersFile(opts);
         if (headersBody.length > 0) {
@@ -150,6 +160,27 @@ function renderRobotsForOpts(opts: AstroMetaOptions): string {
 function renderHeadersFile(opts: AstroMetaOptions): string {
   if (!opts.robots?.contentSignals) return "";
   return renderContentSignalsHeadersFile(opts.robots.contentSignals);
+}
+
+async function buildLlmsTxtForOpts(
+  opts: AstroMetaOptions,
+): Promise<{ path: string; content: string }[]> {
+  if (!opts.llmsTxt || opts.llmsTxt.sources.length === 0) return [];
+  const wildcard = opts.robots?.rules.find((r) => r.userAgent === "*");
+  const result = await buildLlmsTxt(
+    {
+      sources: opts.llmsTxt.sources,
+      disallow: wildcard?.disallow,
+      header: { title: opts.site.name, description: opts.site.description },
+      full: opts.llmsTxt.full,
+    },
+    { site: opts.site },
+  );
+  const files: { path: string; content: string }[] = [{ path: "llms.txt", content: result.index }];
+  if (result.full !== undefined) {
+    files.push({ path: "llms-full.txt", content: result.full });
+  }
+  return files;
 }
 
 async function buildSitemapForOpts(
