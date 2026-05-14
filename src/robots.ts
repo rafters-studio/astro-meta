@@ -55,10 +55,58 @@ export const aiCrawlers = [
 
 export type AiCrawler = (typeof aiCrawlers)[number];
 
-export function renderRobots(_config: RobotsConfig): string {
-  throw new Error("not implemented");
+const KNOWN_AGENTS: ReadonlySet<string> = new Set<string>([...aiCrawlers, "*"]);
+
+/**
+ * Return any configured user-agent names that are neither in the curated AI
+ * crawler matrix nor the `*` wildcard. Used to warn on likely typos.
+ */
+export function findUnknownAgents(config: RobotsConfig): readonly string[] {
+  const seen = new Set<string>();
+  for (const rule of config.rules) {
+    if (!KNOWN_AGENTS.has(rule.userAgent)) seen.add(rule.userAgent);
+  }
+  return [...seen];
 }
 
-export function renderContentSignalsHeader(_policy: ContentSignalsPolicy): string {
-  throw new Error("not implemented");
+export function renderRobots(config: RobotsConfig): string {
+  const blocks: string[] = [];
+  for (const rule of config.rules) {
+    if (rule.userAgent.length === 0) {
+      throw new Error("@rafters/astro-meta/robots: rule.userAgent must be non-empty");
+    }
+    if (rule.crawlDelay !== undefined && rule.crawlDelay < 0) {
+      throw new Error(
+        `@rafters/astro-meta/robots: rule.crawlDelay must be >= 0 (got: ${rule.crawlDelay} for ${rule.userAgent})`,
+      );
+    }
+    const lines: string[] = [`User-agent: ${rule.userAgent}`];
+    for (const path of rule.allow ?? []) lines.push(`Allow: ${path}`);
+    for (const path of rule.disallow ?? []) lines.push(`Disallow: ${path}`);
+    if (rule.crawlDelay !== undefined) lines.push(`Crawl-delay: ${rule.crawlDelay}`);
+    blocks.push(lines.join("\n"));
+  }
+  let body = blocks.join("\n\n");
+  if (config.sitemap !== undefined) {
+    body += `${blocks.length > 0 ? "\n\n" : ""}Sitemap: ${config.sitemap}`;
+  }
+  return `${body}\n`;
+}
+
+export function renderContentSignalsHeader(policy: ContentSignalsPolicy): string {
+  const parts: string[] = [];
+  if (policy.search !== undefined) parts.push(`search=${policy.search}`);
+  if (policy.aiInput !== undefined) parts.push(`ai-input=${policy.aiInput}`);
+  if (policy.aiTrain !== undefined) parts.push(`ai-train=${policy.aiTrain}`);
+  return parts.join(", ");
+}
+
+/**
+ * Render the Cloudflare Pages _headers entry applying the policy to every
+ * route. Returns the empty string when no policy fields are set.
+ */
+export function renderContentSignalsHeadersFile(policy: ContentSignalsPolicy): string {
+  const value = renderContentSignalsHeader(policy);
+  if (value.length === 0) return "";
+  return `/*\n  Content-Signals: ${value}\n`;
 }

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -157,5 +157,78 @@ describe("astroMeta integration", () => {
     )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
     const robots = readFileSync(join(distDir, "robots.txt"), "utf-8");
     expect(robots).toContain("Sitemap: https://cdn.example.com/sitemap.xml");
+  });
+
+  it("build:done emits configured per-bot rules into robots.txt", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      robots: {
+        rules: [
+          { userAgent: "GPTBot", disallow: ["/private"] },
+          { userAgent: "ClaudeBot", allow: ["/"] },
+        ],
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    const robots = readFileSync(join(distDir, "robots.txt"), "utf-8");
+    expect(robots).toContain("User-agent: GPTBot");
+    expect(robots).toContain("Disallow: /private");
+    expect(robots).toContain("User-agent: ClaudeBot");
+  });
+
+  it("build:done writes _headers when contentSignals is configured", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      robots: {
+        rules: [{ userAgent: "*", allow: ["/"] }],
+        contentSignals: { search: "yes", aiInput: "yes", aiTrain: "no" },
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "_headers"))).toBe(true);
+    const headers = readFileSync(join(distDir, "_headers"), "utf-8");
+    expect(headers).toContain("/*");
+    expect(headers).toContain("Content-Signals: search=yes, ai-input=yes, ai-train=no");
+  });
+
+  it("build:done skips _headers when contentSignals is absent", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "_headers"))).toBe(false);
+  });
+
+  it("config:setup warns when a rule names an agent outside the curated matrix", () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      robots: {
+        rules: [{ userAgent: "GPTBot" }, { userAgent: "MysteryBot" }],
+      },
+    });
+    const warnings: string[] = [];
+    const args = {
+      addMiddleware: () => {},
+      updateConfig: () => {},
+      command: "build",
+      logger: {
+        info: () => {},
+        warn: (msg: string) => warnings.push(msg),
+        error: () => {},
+        debug: () => {},
+      },
+    };
+    getHook(integ, "astro:config:setup")(args as unknown as Record<string, unknown>);
+    expect(warnings.some((m) => m.includes("MysteryBot"))).toBe(true);
+    expect(warnings.some((m) => m.includes("GPTBot"))).toBe(false);
   });
 });

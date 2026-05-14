@@ -17,6 +17,7 @@ import type { SiteIdentity } from "./index.js";
 import type { SchemaModule } from "./schema.js";
 import type { LlmsTxtSource } from "./llms-txt.js";
 import type { RobotsConfig } from "./robots.js";
+import { findUnknownAgents, renderContentSignalsHeadersFile, renderRobots } from "./robots.js";
 import type { SitemapSource } from "./sitemap.js";
 import type { OgModule } from "./og.js";
 import type { AuditRule } from "./audit.js";
@@ -47,6 +48,7 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         }
 
         warnIfEmpty(opts, logger);
+        warnOnUnknownCrawlers(opts, logger);
 
         const serialized = JSON.stringify(opts);
         updateConfig({
@@ -79,13 +81,21 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         const outDir = dir.pathname;
         await mkdir(outDir, { recursive: true });
 
-        const robotsBody = renderMinimalRobots(opts);
+        const robotsBody = renderRobotsForOpts(opts);
         await writeFile(`${outDir}robots.txt`, robotsBody, "utf-8");
 
         const sitemapBody = renderMinimalSitemap();
         await writeFile(`${outDir}sitemap.xml`, sitemapBody, "utf-8");
 
-        logger.info("wrote robots.txt and sitemap.xml");
+        const written = ["robots.txt", "sitemap.xml"];
+
+        const headersBody = renderHeadersFile(opts);
+        if (headersBody.length > 0) {
+          await writeFile(`${outDir}_headers`, headersBody, "utf-8");
+          written.push("_headers");
+        }
+
+        logger.info(`wrote ${written.join(", ")}`);
       },
     },
   };
@@ -109,9 +119,34 @@ function warnIfEmpty(opts: AstroMetaOptions, logger: MinimalLogger): void {
   }
 }
 
-function renderMinimalRobots(opts: AstroMetaOptions): string {
-  const sitemap = opts.robots?.sitemap ?? `${opts.site.url}/sitemap.xml`;
-  return `User-agent: *\nAllow: /\n\nSitemap: ${sitemap}\n`;
+function warnOnUnknownCrawlers(opts: AstroMetaOptions, logger: MinimalLogger): void {
+  if (!opts.robots) return;
+  const unknown = findUnknownAgents(opts.robots);
+  for (const agent of unknown) {
+    logger.warn(
+      `robots rule names user-agent "${agent}" not in the curated AI-crawler matrix; check for typos`,
+    );
+  }
+}
+
+function renderRobotsForOpts(opts: AstroMetaOptions): string {
+  if (opts.robots) {
+    const config: RobotsConfig = {
+      rules: opts.robots.rules,
+      sitemap: opts.robots.sitemap ?? `${opts.site.url}/sitemap.xml`,
+      ...(opts.robots.contentSignals ? { contentSignals: opts.robots.contentSignals } : {}),
+    };
+    return renderRobots(config);
+  }
+  return renderRobots({
+    rules: [{ userAgent: "*", allow: ["/"] }],
+    sitemap: `${opts.site.url}/sitemap.xml`,
+  });
+}
+
+function renderHeadersFile(opts: AstroMetaOptions): string {
+  if (!opts.robots?.contentSignals) return "";
+  return renderContentSignalsHeadersFile(opts.robots.contentSignals);
 }
 
 function renderMinimalSitemap(): string {
