@@ -42,13 +42,35 @@ function assertHasType(value: JsonLdObject, key: readonly string[]): void {
   }
 }
 
-/** Render one or more Schema.org objects to a JSON-LD JSON string. */
+/**
+ * Escape characters that would break out of a surrounding `<script>` tag or
+ * trip JavaScript parsers when inlining JSON into HTML. The escapes use JSON's
+ * `\uXXXX` form so the result still parses as the original string under
+ * `JSON.parse`.
+ *
+ *   `<` -> `<`  blocks `</script>` early-close
+ *   `>` -> `>`  blocks `]]>` in some HTML edge cases
+ *   `&` -> `&`  blocks `&` ambiguity in some parsers
+ *   U+2028 / U+2029  block JS line-terminator interpretation
+ */
+function escapeForInlineScript(json: string): string {
+  return json
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(new RegExp("\\u2028", "g"), "\\u2028")
+    .replace(new RegExp("\\u2029", "g"), "\\u2029");
+}
+
+/** Render one or more Schema.org objects to a JSON-LD JSON string, safe for inline `<script>` injection. */
 export function renderJsonLd(value: JsonLdObject | JsonLdObject[]): string {
-  if (Array.isArray(value)) {
-    return JSON.stringify({ "@context": JSON_LD_CONTEXT, "@graph": value });
-  }
-  const { "@type": atType, ...rest } = value;
-  return JSON.stringify({ "@context": JSON_LD_CONTEXT, "@type": atType, ...rest });
+  const payload = Array.isArray(value)
+    ? { "@context": JSON_LD_CONTEXT, "@graph": value }
+    : (() => {
+        const { "@type": atType, ...rest } = value;
+        return { "@context": JSON_LD_CONTEXT, "@type": atType, ...rest };
+      })();
+  return escapeForInlineScript(JSON.stringify(payload));
 }
 
 /**

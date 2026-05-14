@@ -20,6 +20,32 @@ describe("renderJsonLd", () => {
     expect(parsed["@graph"]).toHaveLength(2);
     expect(parsed["@graph"][0]).toEqual({ "@type": "Organization", name: "Org" });
   });
+
+  it("escapes < > and & so </script> cannot break out of an inline script tag", () => {
+    const out = renderJsonLd({
+      "@type": "Article",
+      headline: "</script><img src=x onerror=alert(1)>",
+      description: "ampersands & angle <brackets>",
+    });
+    expect(out).not.toContain("</script>");
+    expect(out).not.toContain("<img");
+    expect(out).not.toMatch(/[<>&]/);
+    const parsed = JSON.parse(out);
+    expect(parsed.headline).toBe("</script><img src=x onerror=alert(1)>");
+    expect(parsed.description).toBe("ampersands & angle <brackets>");
+  });
+
+  it("escapes U+2028 and U+2029 so JS parsers don't see line terminators", () => {
+    const ls = String.fromCharCode(0x2028);
+    const ps = String.fromCharCode(0x2029);
+    const out = renderJsonLd({ "@type": "Article", headline: `line${ls}sep${ps}done` });
+    expect(out).not.toContain(ls);
+    expect(out).not.toContain(ps);
+    expect(out).toContain("\\u2028");
+    expect(out).toContain("\\u2029");
+    const parsed = JSON.parse(out);
+    expect(parsed.headline).toBe(`line${ls}sep${ps}done`);
+  });
 });
 
 describe("mergeGraph", () => {
