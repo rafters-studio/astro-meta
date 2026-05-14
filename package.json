@@ -58,10 +58,13 @@
     "./audit": {
       "types": "./dist/audit.d.ts",
       "import": "./dist/audit.js"
-    }
+    },
+    "./components/SiteMeta.astro": "./dist/components/SiteMeta.astro",
+    "./components/SchemaScript.astro": "./dist/components/SchemaScript.astro",
+    "./components/OgImage.astro": "./dist/components/OgImage.astro"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && mkdir -p dist/components && cp src/components/*.astro dist/components/",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "format": "oxfmt",

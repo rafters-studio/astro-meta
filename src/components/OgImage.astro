@@ -1,0 +1,32 @@
+---
+// @rafters/astro-meta/components/OgImage.astro
+//
+// Emits og:image, og:image:width, og:image:height, and optional og:image:alt
+// pointing at the PNG the integration generated for this route at build time.
+// The PNG itself is written to dist/og/<slug>.png by the OG module; this
+// component is the head-side reference to that URL.
+
+import type { SiteIdentity } from "../index.js";
+import { ogSlugForRoute } from "../og.js";
+
+export interface Props {
+  site: SiteIdentity;
+  /** Route to derive the OG slug from. Defaults to Astro.url.pathname. */
+  route?: string;
+  /** Image width in pixels. Default: 1200. */
+  width?: number;
+  /** Image height in pixels. Default: 630. */
+  height?: number;
+  /** Alt text for og:image:alt. */
+  alt?: string;
+}
+
+const { site, route = Astro.url.pathname, width = 1200, height = 630, alt } = Astro.props;
+const slug = ogSlugForRoute(route);
+const url = `${site.url}/og/${slug}.png`;
+---
+
+<meta property="og:image" content={url} />
+<meta property="og:image:width" content={String(width)} />
+<meta property="og:image:height" content={String(height)} />
+{alt && <meta property="og:image:alt" content={alt} />}

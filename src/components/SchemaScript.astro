@@ -1,0 +1,20 @@
+---
+// @rafters/astro-meta/components/SchemaScript.astro
+//
+// Emits one <script type="application/ld+json"> tag with the merged graph
+// passed in. Drop into a layout's <head> with the schema objects you want
+// to expose. Use mergeGraph from @rafters/astro-meta/schema to combine
+// multiple objects with @id-based deduplication.
+
+import type { JsonLdObject } from "../schema.js";
+import { renderJsonLd } from "../schema.js";
+
+export interface Props {
+  graph: JsonLdObject | JsonLdObject[];
+}
+
+const { graph } = Astro.props;
+const payload = renderJsonLd(graph);
+---
+
+<script is:inline type="application/ld+json" set:html={payload} />

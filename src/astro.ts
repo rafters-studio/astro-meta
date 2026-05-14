@@ -1,22 +1,22 @@
 // @rafters/astro-meta/astro — Astro integration
 //
-// Wires per-surface modules into Astro's build pipeline:
-//   - head injection via middleware (per-route site meta and JSON-LD)
-//   - robots.txt emission on build:done
-//   - sitemap.xml emission on build:done
-//   - llms.txt / llms-full.txt emission on build:done
-//   - OG image rendering on build:done (optional, requires satori peer dep)
-//   - GEO audit on build:done (optional, threshold-gated)
+// Build-time emission of the per-route artifacts that live at well-known URLs
+// on the site root:
+//   - robots.txt
+//   - sitemap.xml (+ sitemap-index when chunked)
+//   - llms.txt and llms-full.txt
+//   - _headers (Cloudflare Pages Content-Signals)
+//   - og/<slug>.png per matching OG module
+//   - _geo-audit.json with the readability report
 //
-// v0.1 ships the minimum runtime: site-meta middleware + robots/sitemap stubs.
-// Subsequent issues fill schema, entity-graph, llms-txt, og, audit.
+// Head-tag emission is consumer-owned via the Astro components shipped from
+// @rafters/astro-meta/components. The integration never reads or mutates
+// generated HTML; build:done writes files only.
 
 import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
 import { posix as posixPath } from "node:path";
 import type { AstroIntegration } from "astro";
 import type { SiteIdentity } from "./index.js";
-import type { SchemaModule } from "./schema.js";
-import { collectSchemas, renderSchemaScript } from "./schema.js";
 import type { LlmsTxtSource } from "./llms-txt.js";
 import { buildLlmsTxt } from "./llms-txt.js";
 import type { RobotsConfig } from "./robots.js";
@@ -27,11 +27,10 @@ import type { OgModule } from "./og.js";
 import { ogSlugForRoute, renderOg } from "./og.js";
 import type { AuditRule } from "./audit.js";
 import { defaultRules, parseRoute, runAudit } from "./audit.js";
-import { injectIntoHead, isAbsoluteUrl } from "./internal/render-site-meta.js";
+import { isAbsoluteUrl } from "./internal/render-site-meta.js";
 
 export interface AstroMetaOptions {
   site: SiteIdentity;
-  schema?: { modules: readonly SchemaModule[] };
   robots?: RobotsConfig;
   sitemap?: { sources: readonly SitemapSource[]; chunkSize?: number };
   llmsTxt?: { sources: readonly LlmsTxtSource[]; full?: boolean };
@@ -39,48 +38,18 @@ export interface AstroMetaOptions {
   audit?: { rules?: readonly AuditRule[]; threshold?: number; failBuild?: boolean };
 }
 
-const VIRTUAL_ID = "virtual:astro-meta/config";
-const VIRTUAL_RESOLVED = "\0virtual:astro-meta/config";
-
 export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
   return {
     name: "@rafters/astro-meta",
     hooks: {
-      "astro:config:setup": ({ addMiddleware, updateConfig, logger }) => {
+      "astro:config:setup": ({ logger }) => {
         if (!isAbsoluteUrl(opts.site.url)) {
           throw new Error(
             `@rafters/astro-meta: site.url must be an absolute http(s) URL (got: ${opts.site.url})`,
           );
         }
-
         warnIfEmpty(opts, logger);
         warnOnUnknownCrawlers(opts, logger);
-
-        const serialized = JSON.stringify({ site: opts.site });
-        updateConfig({
-          vite: {
-            plugins: [
-              {
-                name: "@rafters/astro-meta:virtual-config",
-                resolveId(id: string) {
-                  if (id === VIRTUAL_ID) return VIRTUAL_RESOLVED;
-                  return undefined;
-                },
-                load(id: string) {
-                  if (id === VIRTUAL_RESOLVED) {
-                    return `export const config = ${serialized};`;
-                  }
-                  return undefined;
-                },
-              },
-            ],
-          },
-        });
-
-        addMiddleware({
-          entrypoint: new URL("./middleware.js", import.meta.url),
-          order: "post",
-        });
       },
 
       "astro:build:done": async ({ dir, logger }) => {
@@ -112,12 +81,7 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
           written.push("_headers");
         }
 
-        const schemaCount = await injectSchemasIntoHtml(opts, outDir);
-        if (schemaCount > 0) {
-          written.push(`schema(${schemaCount} route(s))`);
-        }
-
-        const ogCount = await renderAndInjectOg(opts, outDir);
+        const ogCount = await renderOgPngs(opts, outDir, logger);
         if (ogCount > 0) {
           written.push(`og(${ogCount} image(s))`);
         }
@@ -154,7 +118,6 @@ interface MinimalLogger {
 
 function warnIfEmpty(opts: AstroMetaOptions, logger: MinimalLogger): void {
   const empty = [
-    ["schema", opts.schema?.modules],
     ["sitemap", opts.sitemap?.sources],
     ["llmsTxt", opts.llmsTxt?.sources],
     ["og", opts.og?.modules],
@@ -217,65 +180,58 @@ async function buildLlmsTxtForOpts(
   return files;
 }
 
-function routeFromHtmlPath(htmlPath: string, outDir: string): string {
-  const rel = htmlPath.startsWith(outDir) ? htmlPath.slice(outDir.length) : htmlPath;
-  const stripped = posixPath.normalize(`/${rel}`).replace(/index\.html$/, "");
+function routeFromHtmlPath(htmlPath: string): string {
+  const stripped = posixPath.normalize(`/${htmlPath}`).replace(/index\.html$/, "");
   return stripped.length === 0 ? "/" : stripped;
 }
 
-async function injectSchemasIntoHtml(opts: AstroMetaOptions, outDir: string): Promise<number> {
-  if (!opts.schema || opts.schema.modules.length === 0) return 0;
-  const htmlFiles: string[] = [];
-  for await (const entry of glob("**/*.html", { cwd: outDir })) {
-    htmlFiles.push(entry);
-  }
-  let touched = 0;
-  await Promise.all(
-    htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel, "");
-      const ctx = { site: opts.site, page: { route } };
-      const objects = await collectSchemas(opts.schema?.modules ?? [], ctx);
-      if (objects.length === 0) return;
-      const script = renderSchemaScript(objects);
-      const filePath = `${outDir}${rel}`;
-      const html = await readFile(filePath, "utf-8");
-      const injected = injectIntoHead(html, script);
-      if (injected !== html) {
-        await writeFile(filePath, injected, "utf-8");
-        touched += 1;
-      }
-    }),
-  );
-  return touched;
+interface DistRoute {
+  rel: string;
+  route: string;
 }
 
-async function renderAndInjectOg(opts: AstroMetaOptions, outDir: string): Promise<number> {
-  if (!opts.og || opts.og.modules.length === 0) return 0;
-  const htmlFiles: string[] = [];
-  for await (const entry of glob("**/*.html", { cwd: outDir })) {
-    htmlFiles.push(entry);
+async function discoverDistRoutes(outDir: string): Promise<DistRoute[]> {
+  const routes: DistRoute[] = [];
+  for await (const rel of glob("**/*.html", { cwd: outDir })) {
+    routes.push({ rel, route: routeFromHtmlPath(rel) });
   }
+  return routes;
+}
+
+/**
+ * Walk dist/**\/*.html read-only to discover routes, run the first matching
+ * OG module per route, write the PNG to dist/og/<slug>.png. The integration
+ * never modifies the HTML; consumers reference the generated URL from their
+ * layout via @rafters/astro-meta/components/OgImage.astro.
+ */
+async function renderOgPngs(
+  opts: AstroMetaOptions,
+  outDir: string,
+  logger: MinimalLogger,
+): Promise<number> {
+  if (!opts.og || opts.og.modules.length === 0) return 0;
+  const routes = await discoverDistRoutes(outDir);
   await mkdir(`${outDir}og`, { recursive: true });
   let written = 0;
   await Promise.all(
-    htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel, "");
+    routes.map(async ({ route }) => {
       const matchingModules =
         opts.og?.modules.filter((m) => (m.match ? m.match(route) : true)) ?? [];
       if (matchingModules.length === 0) return;
       const firstModule = matchingModules[0];
       if (!firstModule) return;
+      if (matchingModules.length > 1) {
+        const keys = matchingModules.map((m) => `[${m.key.join(", ")}]`).join(", ");
+        logger.warn(
+          `og: multiple modules matched route ${route} (${keys}); the first wins. Order modules from most-specific to least-specific in the modules array.`,
+        );
+      }
       const png = await renderOg(firstModule, { site: opts.site, page: { route } });
       const slug = ogSlugForRoute(route);
       const pngPath = `${outDir}og/${slug}.png`;
       await mkdir(posixPath.dirname(pngPath), { recursive: true });
       await writeFile(pngPath, png);
       written += 1;
-      const filePath = `${outDir}${rel}`;
-      const html = await readFile(filePath, "utf-8");
-      const ogUrl = `${opts.site.url}/og/${slug}.png`;
-      const tag = `<meta property="og:image" content="${ogUrl}">`;
-      await writeFile(filePath, injectIntoHead(html, tag), "utf-8");
     }),
   );
   return written;
@@ -287,20 +243,16 @@ async function runAuditForOpts(
   logger: MinimalLogger,
 ): Promise<ReturnType<typeof runAudit> | null> {
   if (!opts.audit) return null;
-  const htmlFiles: string[] = [];
-  for await (const entry of glob("**/*.html", { cwd: outDir })) {
-    htmlFiles.push(entry);
-  }
-  if (htmlFiles.length === 0) return null;
-  const routes = await Promise.all(
-    htmlFiles.map(async (rel) => {
-      const route = routeFromHtmlPath(rel, "");
+  const distRoutes = await discoverDistRoutes(outDir);
+  if (distRoutes.length === 0) return null;
+  const parsedRoutes = await Promise.all(
+    distRoutes.map(async ({ rel, route }) => {
       const html = await readFile(`${outDir}${rel}`, "utf-8");
       return parseRoute(route, html);
     }),
   );
   const rules = opts.audit.rules ?? defaultRules;
-  const report = runAudit(routes, rules);
+  const report = runAudit(parsedRoutes, rules);
   for (const r of report.routes) {
     if (r.score < 50) logger.warn(`audit: ${r.route} scored ${r.score}/100`);
   }

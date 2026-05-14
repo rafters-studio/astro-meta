@@ -34,29 +34,35 @@ Install only what the site uses. `satori` and `@resvg/resvg-js` are dynamic-impo
 
 ## Quickstart.
 
-Configure the site identity and opt into surfaces in `astro.config.mjs`:
+Declare a shared site identity and import it in both the config and the layout:
+
+```ts
+// src/site.ts
+import { defineSite } from "@rafters/astro-meta";
+
+export const site = defineSite({
+  url: "https://example.com",
+  name: "Example",
+  description: "Example marketing site",
+  locale: "en-US",
+});
+```
+
+Register the integration in `astro.config.mjs`:
 
 ```ts
 // astro.config.mjs
 import { defineConfig } from "astro/config";
 import { astroMeta } from "@rafters/astro-meta/astro";
-import { defineSite } from "@rafters/astro-meta";
-import * as articleSchema from "./src/meta/article-schema";
-import * as docsLlms from "./src/meta/docs-llms";
+import { site } from "./src/site.js";
 
 export default defineConfig({
+  site: "https://example.com",
   integrations: [
     astroMeta({
-      site: defineSite({
-        url: "https://example.com",
-        name: "Example",
-        description: "Example marketing site",
-      }),
-      schema: { modules: [articleSchema] },
-      llmsTxt: { sources: [docsLlms], full: true },
+      site,
       robots: {
         rules: [{ userAgent: "*", allow: ["/"] }],
-        sitemap: "https://example.com/sitemap.xml",
         contentSignals: { search: "yes", aiInput: "yes", aiTrain: "no" },
       },
     }),
@@ -64,37 +70,52 @@ export default defineConfig({
 });
 ```
 
-Declare a schema module:
+The `site` option is the only required field. `robots`, `sitemap`, `llmsTxt`, `og`, and `audit` are independent opt-ins; configure only the surfaces this site actually emits.
 
-```ts
-// src/meta/article-schema.ts
-import { z } from "astro/zod";
-import type { MetaContext } from "@rafters/astro-meta";
-import type { JsonLdObject } from "@rafters/astro-meta/schema";
+Compose head tags in a layout using the three components the package ships:
 
-export const key = ["article"] as const;
-export const schemaInput = z.object({
-  title: z.string(),
-  author: z.string(),
-  datePublished: z.string(),
+```astro
+---
+// src/layouts/Base.astro
+import SiteMeta from "@rafters/astro-meta/components/SiteMeta.astro";
+import SchemaScript from "@rafters/astro-meta/components/SchemaScript.astro";
+import OgImage from "@rafters/astro-meta/components/OgImage.astro";
+import { mergeGraph } from "@rafters/astro-meta/schema";
+import { defineEntities } from "@rafters/astro-meta/entities";
+import { site } from "../site.js";
+
+export interface Props {
+  pageTitle?: string;
+  pageDescription?: string;
+}
+
+const { pageTitle, pageDescription } = Astro.props;
+
+const entities = defineEntities({
+  organization: { "@id": `${site.url}#org`, name: site.name, url: site.url },
 });
 
-export function schema({
-  input,
-  ctx,
-}: {
-  input: z.infer<typeof schemaInput>;
-  ctx: MetaContext;
-}): JsonLdObject {
-  return {
-    "@type": "Article",
-    headline: input.title,
-    author: { "@type": "Person", name: input.author },
-    datePublished: input.datePublished,
-    url: ctx.site.url + (ctx.page?.route ?? ""),
-  };
-}
+const orgGraph = await entities.schema({ ctx: { site } });
+const graph = mergeGraph([
+  ...(Array.isArray(orgGraph) ? orgGraph : [orgGraph]),
+  {
+    "@type": "WebSite",
+    "@id": `${site.url}#website`,
+    url: site.url,
+    name: site.name,
+    description: site.description ?? "",
+    publisher: { "@id": `${site.url}#org` },
+  },
+]);
+---
+<head>
+  <SiteMeta site={site} title={pageTitle} description={pageDescription} />
+  <SchemaScript graph={graph} />
+  <OgImage site={site} />
+</head>
 ```
+
+The integration writes file artifacts at `build:done`. Head tags are the layout's responsibility, composed with `SiteMeta`, `SchemaScript`, and `OgImage`. That is the whole shape.
 
 Declare an llms.txt source:
 
@@ -117,43 +138,42 @@ export async function collect() {
 }
 ```
 
-Modules declare what they emit. The integration wires emissions into Astro's build. That is the whole shape.
-
 ## Concepts.
 
 ### Surfaces.
 
-Seven emission surfaces, one subpath export each, plus the root entry and the integration:
+Seven file-emission surfaces, three head-composition components, the root entry, and the integration:
 
-| Surface  | Subpath                        | What it emits                                                                                                                                                                                    |
-| -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Entry    | `@rafters/astro-meta`          | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`                                                                                                                                  |
-| Schema   | `@rafters/astro-meta/schema`   | JSON-LD `@graph` merged and injected into `<head>` via post-build HTML mutation                                                                                                                  |
-| Entities | `@rafters/astro-meta/entities` | Organization + Person with sameAs, knowsAbout, founder, employee; validates sameAs URLs (https required, must parse); enforces @id uniqueness; warns on employee/worksFor reciprocity mismatches |
-| llms.txt | `@rafters/astro-meta/llms-txt` | `/llms.txt` and `/llms-full.txt`; auto-mirrors robots wildcard disallow so the two artifacts cannot drift                                                                                        |
-| Robots   | `@rafters/astro-meta/robots`   | `robots.txt` with curated AI-crawler matrix + Cloudflare `_headers` Content-Signals                                                                                                              |
-| Sitemap  | `@rafters/astro-meta/sitemap`  | `sitemap.xml` + `sitemap-index` chunked at the 50,000-URL protocol cap, with hreflang alternates                                                                                                 |
-| OG       | `@rafters/astro-meta/og`       | Per-route PNG via satori + @resvg/resvg-js (optional peers, dynamic-imported); 1200x630 default                                                                                                  |
-| Audit    | `@rafters/astro-meta/audit`    | Build-time GEO readability score per route via linkedom DOM parse; optional CI threshold gate                                                                                                    |
-| Astro    | `@rafters/astro-meta/astro`    | `astroMeta(opts)`: the integration entry point that registers and wires all surfaces                                                                                                             |
+| Surface    | Subpath                            | What it emits                                                                                                                                                                                    |
+| ---------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Entry      | `@rafters/astro-meta`              | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`                                                                                                                                  |
+| Components | `@rafters/astro-meta/components/*` | `SiteMeta.astro`, `SchemaScript.astro`, `OgImage.astro`; drop into a layout `<head>` for canonical, OG, Twitter card, and JSON-LD tags                                                           |
+| Schema     | `@rafters/astro-meta/schema`       | JSON-LD primitives (`renderJsonLd`, `mergeGraph`) plus `SchemaScript` for layout composition; no HTML mutation                                                                                   |
+| Entities   | `@rafters/astro-meta/entities`     | Organization + Person with sameAs, knowsAbout, founder, employee; validates sameAs URLs (https required, must parse); enforces @id uniqueness; warns on employee/worksFor reciprocity mismatches |
+| llms.txt   | `@rafters/astro-meta/llms-txt`     | `/llms.txt` and `/llms-full.txt`; auto-mirrors robots wildcard disallow so the two artifacts cannot drift                                                                                        |
+| Robots     | `@rafters/astro-meta/robots`       | `robots.txt` with curated AI-crawler matrix + Cloudflare `_headers` Content-Signals                                                                                                              |
+| Sitemap    | `@rafters/astro-meta/sitemap`      | `sitemap.xml` + `sitemap-index` chunked at the 50,000-URL protocol cap, with hreflang alternates                                                                                                 |
+| OG         | `@rafters/astro-meta/og`           | Per-route PNG via satori + @resvg/resvg-js (optional peers, dynamic-imported); 1200x630 default                                                                                                  |
+| Audit      | `@rafters/astro-meta/audit`        | Build-time GEO readability score per route via linkedom DOM parse; optional CI threshold gate                                                                                                    |
+| Astro      | `@rafters/astro-meta/astro`        | `astroMeta(opts)`: the integration entry point that wires all file-emission surfaces                                                                                                             |
 
-Each subpath ships a typed module shape and a renderer. The integration at `/astro` is the meta-package; it registers surfaces, but the surfaces are independently importable.
+The integration writes file artifacts only. It never reads or mutates generated HTML. Head tags are consumer-owned; the three components are the composition surface.
 
 ### Modules.
 
-A module is a typed object with a hierarchical `key`, an optional Zod input schema, and a pure derivation function from validated input plus context to the emitted artifact. The shape mirrors the loader and action shape in [`@rafters/astro-data`](https://github.com/rafters-studio/astro-data), kept narrow per surface so one Zod schema can feed both packages without translation.
+A module is a typed object with a hierarchical `key` and a pure derivation function from context to the emitted artifact. Sitemap, llms-txt, og, and audit each accept a `sources` or `modules` array in the integration options; those arrays are where modules register. Schema composition is consumer-side in the layout using `mergeGraph` and `<SchemaScript>`; the integration options accept no `schema` key.
 
 ### Hierarchical keys.
 
 Module keys are arrays. The build pipeline composes by prefix:
 
 ```
-['article']                        all article schema modules
-['article', 'blog']                blog-specific overrides
-['article', 'blog', 'post-slug']   per-post overrides
+['docs']                    all docs llms-txt entries
+['docs', 'api']             API reference section
+['docs', 'api', 'get-org']  per-page override
 ```
 
-The same convention governs sitemap segmentation, llms.txt sections, and audit scoping. It is identical to the `@rafters/astro-data` key convention so the two packages compose cleanly inside the same site.
+The same convention governs sitemap segmentation, llms.txt sections, and audit scoping. It matches the `@rafters/astro-data` key convention so the two packages compose cleanly inside the same site.
 
 ### Cloudflare emissions.
 
@@ -205,17 +225,20 @@ See [`src/index.ts`](./src/index.ts) and each subpath module file for the full c
 
 ### Subpath exports.
 
-| Entry                          | Contents                                                               |
-| ------------------------------ | ---------------------------------------------------------------------- |
-| `@rafters/astro-meta`          | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`        |
-| `@rafters/astro-meta/astro`    | `astroMeta(opts)`: the Astro integration entry point                   |
-| `@rafters/astro-meta/schema`   | `SchemaModule`, `JsonLdObject`, `renderJsonLd`, `mergeGraph`           |
-| `@rafters/astro-meta/entities` | `defineEntities`, `OrganizationEntity`, `PersonEntity`                 |
-| `@rafters/astro-meta/llms-txt` | `LlmsTxtEntry`, `LlmsTxtSource`, `buildLlmsTxt`                        |
-| `@rafters/astro-meta/robots`   | `RobotsConfig`, `ContentSignalsPolicy`, `aiCrawlers`, renderers        |
-| `@rafters/astro-meta/sitemap`  | `SitemapEntry`, `SitemapSource`, `renderSitemap`, `renderSitemapIndex` |
-| `@rafters/astro-meta/og`       | `OgModule`, `SatoriElement`, `renderOg`                                |
-| `@rafters/astro-meta/audit`    | `AuditRule`, `AuditRouteReport`, `AuditReport`, `runAudit`             |
+| Entry                                               | Contents                                                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `@rafters/astro-meta`                               | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`                                      |
+| `@rafters/astro-meta/astro`                         | `astroMeta(opts)`: the Astro integration entry point                                                 |
+| `@rafters/astro-meta/components/SiteMeta.astro`     | Props: `site`, optional `route?`, `title?`, `description?`; emits canonical + OG core + Twitter card |
+| `@rafters/astro-meta/components/SchemaScript.astro` | Props: `graph: JsonLdObject \| JsonLdObject[]`; emits one `<script type="application/ld+json">`      |
+| `@rafters/astro-meta/components/OgImage.astro`      | Props: `site`, optional `route?`, `width?`, `height?`, `alt?`; emits `og:image` meta tags            |
+| `@rafters/astro-meta/schema`                        | `JsonLdObject`, `renderJsonLd`, `mergeGraph`, `SchemaModule`, `collectSchemas`                       |
+| `@rafters/astro-meta/entities`                      | `defineEntities`, `OrganizationEntity`, `PersonEntity`                                               |
+| `@rafters/astro-meta/llms-txt`                      | `LlmsTxtEntry`, `LlmsTxtSource`, `buildLlmsTxt`                                                      |
+| `@rafters/astro-meta/robots`                        | `RobotsConfig`, `ContentSignalsPolicy`, `aiCrawlers`, renderers                                      |
+| `@rafters/astro-meta/sitemap`                       | `SitemapEntry`, `SitemapSource`, `renderSitemap`, `renderSitemapIndex`                               |
+| `@rafters/astro-meta/og`                            | `OgModule`, `SatoriElement`, `renderOg`                                                              |
+| `@rafters/astro-meta/audit`                         | `AuditRule`, `AuditRouteReport`, `AuditReport`, `runAudit`                                           |
 
 ## Why not Yoast.
 
