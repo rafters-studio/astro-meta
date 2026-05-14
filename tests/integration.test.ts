@@ -261,6 +261,85 @@ describe("astroMeta integration", () => {
     expect(index).toContain("https://example.com/sitemap-2.xml");
   });
 
+  it("build:done writes llms.txt and llms-full.txt when sources are configured", async () => {
+    const integ = astroMeta({
+      site: defineSite({
+        url: "https://example.com",
+        name: "Example",
+        description: "An example",
+      }),
+      llmsTxt: {
+        sources: [
+          {
+            key: ["docs"],
+            collect: () => [
+              {
+                title: "Intro",
+                url: "/docs/intro",
+                summary: "Welcome",
+                body: "Intro body",
+                section: "Docs",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "llms.txt"))).toBe(true);
+    expect(existsSync(join(distDir, "llms-full.txt"))).toBe(true);
+    const index = readFileSync(join(distDir, "llms.txt"), "utf-8");
+    const full = readFileSync(join(distDir, "llms-full.txt"), "utf-8");
+    expect(index).toContain("# Example");
+    expect(index).toContain("> An example");
+    expect(index).toContain("## Docs");
+    expect(index).toContain("- [Intro](https://example.com/docs/intro): Welcome");
+    expect(full).toContain("## Intro");
+    expect(full).toContain("Intro body");
+  });
+
+  it("build:done mirrors robots wildcard disallow into llms.txt", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      robots: {
+        rules: [{ userAgent: "*", disallow: ["/private"] }],
+      },
+      llmsTxt: {
+        sources: [
+          {
+            key: ["mixed"],
+            collect: () => [
+              { title: "Public", url: "/public/x" },
+              { title: "Private", url: "/private/y" },
+            ],
+          },
+        ],
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    const index = readFileSync(join(distDir, "llms.txt"), "utf-8");
+    expect(index).toContain("Public");
+    expect(index).not.toContain("Private");
+  });
+
+  it("build:done skips llms.txt when no llmsTxt option is configured", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "llms.txt"))).toBe(false);
+    expect(existsSync(join(distDir, "llms-full.txt"))).toBe(false);
+  });
+
   it("config:setup warns when a rule names an agent outside the curated matrix", () => {
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),
