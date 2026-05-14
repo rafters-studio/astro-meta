@@ -118,14 +118,14 @@ That's the whole shape. Modules declare what they emit; the integration wires em
 
 Six emission surfaces, one subpath export each:
 
-| Surface     | Subpath                          | What it emits                                                 |
-| ----------- | -------------------------------- | ------------------------------------------------------------- |
-| Head        | `@rafters/astro-meta/schema`     | JSON-LD `<script>` tags injected into `<head>`                |
-| Robots      | `@rafters/astro-meta/robots`     | `robots.txt` + Cloudflare `_headers` Content-Signals          |
-| Sitemap     | `@rafters/astro-meta/sitemap`    | `sitemap.xml` + `sitemap-index` with hreflang                 |
-| llms.txt    | `@rafters/astro-meta/llms-txt`   | `/llms.txt` and `/llms-full.txt`                              |
-| OG image    | `@rafters/astro-meta/og`         | Per-route PNG via satori + resvg                              |
-| Audit       | `@rafters/astro-meta/audit`      | Build-time GEO readability score per route, JSON report       |
+| Surface  | Subpath                        | What it emits                                           |
+| -------- | ------------------------------ | ------------------------------------------------------- |
+| Head     | `@rafters/astro-meta/schema`   | JSON-LD `<script>` tags injected into `<head>`          |
+| Robots   | `@rafters/astro-meta/robots`   | `robots.txt` + Cloudflare `_headers` Content-Signals    |
+| Sitemap  | `@rafters/astro-meta/sitemap`  | `sitemap.xml` + `sitemap-index` with hreflang           |
+| llms.txt | `@rafters/astro-meta/llms-txt` | `/llms.txt` and `/llms-full.txt`                        |
+| OG image | `@rafters/astro-meta/og`       | Per-route PNG via satori + resvg                        |
+| Audit    | `@rafters/astro-meta/audit`    | Build-time GEO readability score per route, JSON report |
 
 Each subpath ships a typed module shape and a renderer. The integration at `/astro` registers and wires them.
 
@@ -171,16 +171,16 @@ See [`src/index.ts`](./src/index.ts) and each subpath module file for the full c
 
 ### Subpath exports
 
-| Entry                            | Contents                                                       |
-| -------------------------------- | -------------------------------------------------------------- |
-| `@rafters/astro-meta`            | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z` |
-| `@rafters/astro-meta/astro`      | `astroMeta(opts)` -- the Astro integration entry point         |
-| `@rafters/astro-meta/schema`     | `SchemaModule`, `JsonLdObject`, `renderJsonLd`, `mergeGraph`   |
-| `@rafters/astro-meta/llms-txt`   | `LlmsTxtEntry`, `LlmsTxtSource`, `buildLlmsTxt`                |
-| `@rafters/astro-meta/robots`     | `RobotsConfig`, `ContentSignalsPolicy`, `aiCrawlers`, renderers |
-| `@rafters/astro-meta/sitemap`    | `SitemapEntry`, `SitemapSource`, `renderSitemap`, `renderSitemapIndex` |
-| `@rafters/astro-meta/og`         | `OgModule`, `SatoriElement`, `renderOg`                        |
-| `@rafters/astro-meta/audit`      | `AuditRule`, `AuditRouteReport`, `AuditReport`, `runAudit`     |
+| Entry                          | Contents                                                               |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `@rafters/astro-meta`          | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`        |
+| `@rafters/astro-meta/astro`    | `astroMeta(opts)` -- the Astro integration entry point                 |
+| `@rafters/astro-meta/schema`   | `SchemaModule`, `JsonLdObject`, `renderJsonLd`, `mergeGraph`           |
+| `@rafters/astro-meta/llms-txt` | `LlmsTxtEntry`, `LlmsTxtSource`, `buildLlmsTxt`                        |
+| `@rafters/astro-meta/robots`   | `RobotsConfig`, `ContentSignalsPolicy`, `aiCrawlers`, renderers        |
+| `@rafters/astro-meta/sitemap`  | `SitemapEntry`, `SitemapSource`, `renderSitemap`, `renderSitemapIndex` |
+| `@rafters/astro-meta/og`       | `OgModule`, `SatoriElement`, `renderOg`                                |
+| `@rafters/astro-meta/audit`    | `AuditRule`, `AuditRouteReport`, `AuditReport`, `runAudit`             |
 
 ## Why not Yoast / RankMath / a generic Astro SEO plugin?
 
