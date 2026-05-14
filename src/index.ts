@@ -8,8 +8,6 @@
 // Everything exported here is part of the public surface and subject to semver.
 // Anything under ./internal/ is implementation detail.
 
-import type { z } from "astro/zod";
-
 // ─── Site identity ─────────────────────────────────────────────────────────
 
 export interface SiteIdentity {
@@ -51,15 +49,6 @@ export interface MetaContext {
 // ─── Surfaces ──────────────────────────────────────────────────────────────
 
 export type EmissionSurface = "head" | "robots" | "sitemap" | "llms-txt" | "og-image" | "audit";
-
-// ─── Shared module base ────────────────────────────────────────────────────
-
-export interface MetaModuleBase<T = unknown> {
-  /** Hierarchical key for composition and per-surface invalidation. */
-  key: readonly string[];
-  /** Zod schema for runtime validation of the module's input. */
-  input?: z.ZodType<T>;
-}
 
 // ─── Configuration helper ──────────────────────────────────────────────────
 
