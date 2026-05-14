@@ -2,13 +2,16 @@
 // @rafters/astro-meta/components/SiteMeta.astro
 //
 // Site-level head fragment: generator, canonical URL, Open Graph core,
-// Twitter card, description, locale. Drop into a layout's <head>; takes the
-// site identity and (optionally) per-page overrides.
+// Twitter card, description, locale. Drop into a layout's <head>; the
+// `site` prop defaults to the SiteIdentity configured in astroMeta({ site })
+// via the virtual:astro-meta/site module.
 
 import type { SiteIdentity } from "../index.js";
+import { site as defaultSite } from "virtual:astro-meta/site";
 
 export interface Props {
-  site: SiteIdentity;
+  /** Override the integration-configured SiteIdentity. */
+  site?: SiteIdentity;
   /** Route for canonical and og:url. Defaults to Astro.url.pathname. */
   route?: string;
   /** Per-page title override. Falls back to site.name. */
@@ -17,7 +20,7 @@ export interface Props {
   description?: string;
 }
 
-const { site, route = Astro.url.pathname, title, description } = Astro.props;
+const { site = defaultSite, route = Astro.url.pathname, title, description } = Astro.props;
 const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
 const pageUrl = `${site.url}${normalizedRoute}`;
 const effectiveTitle = title ?? site.name;
