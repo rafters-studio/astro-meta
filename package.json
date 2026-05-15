@@ -1,6 +1,6 @@
 {
   "name": "@rafters/astro-meta",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build-time artifacts for crawlers and LLMs on Astro 6: JSON-LD, llms.txt, robots, sitemap, OG images, and build-time GEO readability scoring. Composes with @rafters/astro-data.",
   "keywords": [
     "aeo",

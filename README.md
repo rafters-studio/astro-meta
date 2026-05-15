@@ -10,9 +10,9 @@ The integration at `/astro` wires them together.
 
 ## Status.
 
-Pre-release. Designed against Astro 6.1.9+. Not yet published to npm. Trusted publishing via GitHub Actions OIDC; every release ships npm provenance attestations. If you see a version of this package on npm without provenance, do not install it.
+`0.1.0` is live on npm. Designed against Astro 6.1.9+. Lives inside Astro's own lifecycle, not next to it.
 
-The integration runs only at `astro:config:setup` (validation + warnings) and `astro:build:done` (file emissions). No request-time middleware. SSG and SSR consumers behave identically.
+The integration runs at `astro:config:setup` (validation, warnings, `injectTypes` for the virtual module) and `astro:build:done` (file emissions). No request-time middleware. SSG and SSR consumers behave identically.
 
 ## Install.
 
@@ -107,6 +107,8 @@ const graph = mergeGraph([
 ```
 
 The integration writes file artifacts at `build:done`. Head tags are the layout's responsibility, composed with `SiteMeta`, `SchemaScript`, and `OgImage`. That is the whole shape.
+
+`virtual:astro-meta/site` is typed via Astro's `injectTypes`. Consumer `astro check` resolves the import to a strict `SiteIdentity` with no `vite-env.d.ts` declaration and no triple-slash directive in the consumer source.
 
 Declare an llms.txt source:
 
@@ -241,9 +243,9 @@ astro-meta is MIT-licensed because being legible to a crawler shouldn't require 
 
 ## Supply chain.
 
-This package publishes via [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) with OIDC from GitHub Actions. No long-lived `NPM_TOKEN` exists anywhere in the release pipeline. Every release ships with [npm provenance attestations](https://docs.npmjs.com/generating-provenance-statements). The release workflow is in [`.github/workflows/release.yml`](./.github/workflows/release.yml) and is the authoritative source.
+This package publishes via [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) with OIDC from GitHub Actions. No long-lived `NPM_TOKEN` exists anywhere in the release pipeline. Releases from `0.1.1` onward ship with [npm provenance attestations](https://docs.npmjs.com/generating-provenance-statements). The release workflow is in [`.github/workflows/release.yml`](./.github/workflows/release.yml) and is the authoritative source.
 
-If you see a version of this package on npm without provenance, do not install it. Open an issue.
+Bootstrap caveat: `0.1.0` was published manually under a user account to claim the package name on npm, since npm's trusted-publisher configuration requires an existing package. It is the only release in this package's history without provenance. Every subsequent release ships with it. If you see any version other than `0.1.0` on npm without provenance, do not install it. Open an issue.
 
 Zero runtime dependencies. Peer dependencies (`astro`, optionally `satori`, `@resvg/resvg-js`, `linkedom`, `schema-dts`) are listed minimally; each is required only if its subpath is imported.
 
