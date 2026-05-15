@@ -21,11 +21,11 @@
   "bugs": {
     "url": "https://github.com/rafters-studio/astro-meta/issues"
   },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rafters-studio/astro-meta.git"
   },
-  "license": "MIT",
   "files": [
     "dist",
     "README.md",
