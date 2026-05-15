@@ -17,7 +17,15 @@
     "sitemap",
     "withastro"
   ],
+  "homepage": "https://github.com/rafters-studio/astro-meta#readme",
+  "bugs": {
+    "url": "https://github.com/rafters-studio/astro-meta/issues"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rafters-studio/astro-meta.git"
+  },
   "files": [
     "dist",
     "README.md",
