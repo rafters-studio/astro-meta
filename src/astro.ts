@@ -42,6 +42,17 @@ export interface AstroMetaOptions {
 const VIRTUAL_SITE_ID = "virtual:astro-meta/site";
 const VIRTUAL_SITE_RESOLVED = "\0virtual:astro-meta/site";
 
+const VIRTUAL_SITE_TYPES = `declare module "virtual:astro-meta/site" {
+  export interface SiteIdentity {
+    url: string;
+    name: string;
+    description?: string;
+    locale?: string;
+  }
+  export const site: SiteIdentity;
+}
+`;
+
 export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
   return {
     name: "@rafters/astro-meta",
@@ -74,6 +85,13 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
               },
             ],
           },
+        });
+      },
+
+      "astro:config:done": ({ injectTypes }) => {
+        injectTypes({
+          filename: "virtual-site.d.ts",
+          content: VIRTUAL_SITE_TYPES,
         });
       },
 
