@@ -26,14 +26,16 @@ Use `.test.ts` for pure logic (rendering, schema shape, audit scoring, type-leve
 
 ## Releasing
 
-Changes are versioned with [Changesets](https://github.com/changesets/changesets).
-
 ```bash
-pnpm changeset           # describe the change
-pnpm changeset version   # bump version + update CHANGELOG
-git commit -am "release"
-git push                 # CI publishes via OIDC trusted publishing
+# bump version in package.json and write a CHANGELOG entry for the new version
+git commit -am "release vX.Y.Z"
+git push
+# after the release commit lands on main:
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
+
+The tag triggers `.github/workflows/release.yml`, which builds and runs `npm publish --access=public --provenance`.
 
 No long-lived `NPM_TOKEN` exists in this repo. Releases are minted per-publish via GitHub Actions OIDC. Provenance attestations ship on every release.
 
