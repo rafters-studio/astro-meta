@@ -1,5 +1,9 @@
 # @rafters/astro-meta
 
+## 0.1.2
+
+Workflow fix. No API changes; `0.1.1` was tagged but did not publish to npm because the release workflow ran on Node 22, and the OIDC + provenance handshake against the npm registry requires Node 24. Bumped both workflows to `24.12` to match the rafters and mail packages. `0.1.2` is the first release that actually ships to npm with provenance.
+
 ## 0.1.1
 
 README catchup. No code changes.
