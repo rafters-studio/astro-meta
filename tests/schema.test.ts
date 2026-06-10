@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { collectSchemas, mergeGraph, renderJsonLd, renderSchemaScript } from "../src/schema.js";
+import {
+  article,
+  breadcrumbList,
+  collectSchemas,
+  mergeGraph,
+  renderJsonLd,
+  renderSchemaScript,
+  softwareApplication,
+} from "../src/schema.js";
 import type { SchemaModule } from "../src/schema.js";
 
 const ctx = { site: { url: "https://example.com", name: "Example" }, page: { route: "/" } };
@@ -145,5 +153,70 @@ describe("renderSchemaScript", () => {
     expect(out).toContain('"@graph"');
     expect(out).toContain('"Organization"');
     expect(out).toContain('"Person"');
+  });
+});
+
+describe("softwareApplication", () => {
+  it("builds a SoftwareApplication node with offers", () => {
+    const node = softwareApplication({
+      "@id": "https://runlegion.dev/#app",
+      name: "Legion",
+      url: "https://runlegion.dev",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "macOS, Linux",
+      offers: { price: "0", priceCurrency: "USD" },
+    });
+    expect(node["@type"]).toBe("SoftwareApplication");
+    expect(node["@id"]).toBe("https://runlegion.dev/#app");
+    expect(node["offers"]).toEqual({ "@type": "Offer", price: "0", priceCurrency: "USD" });
+  });
+
+  it("omits absent optional fields", () => {
+    const node = softwareApplication({ name: "Bare" });
+    expect(Object.keys(node)).toEqual(["@type", "name"]);
+  });
+});
+
+describe("article", () => {
+  it("defaults to @type Article", () => {
+    expect(article({ headline: "Hello" })["@type"]).toBe("Article");
+  });
+
+  it("builds a TechArticle with dates and refs", () => {
+    const node = article({
+      type: "TechArticle",
+      "@id": "https://x.dev/docs/a/#article",
+      headline: "Architecture",
+      datePublished: "2026-01-01T00:00:00Z",
+      dateModified: "2026-06-01T00:00:00Z",
+      author: { "@id": "https://x.dev/#org" },
+      publisher: { "@id": "https://x.dev/#org" },
+    });
+    expect(node["@type"]).toBe("TechArticle");
+    expect(node["datePublished"]).toBe("2026-01-01T00:00:00Z");
+    expect(node["author"]).toEqual({ "@id": "https://x.dev/#org" });
+    expect(node["publisher"]).toEqual({ "@id": "https://x.dev/#org" });
+  });
+
+  it("composes into a graph by @id with mergeGraph", () => {
+    const graph = mergeGraph([
+      { "@type": "Organization", "@id": "#org", name: "Org" },
+      article({ "@id": "#post", headline: "Post", publisher: { "@id": "#org" } }),
+    ]);
+    expect(graph).toHaveLength(2);
+  });
+});
+
+describe("breadcrumbList", () => {
+  it("builds an ordered BreadcrumbList with 1-based positions", () => {
+    const node = breadcrumbList([
+      { name: "Home", url: "https://x.dev/" },
+      { name: "Docs", url: "https://x.dev/docs/" },
+    ]);
+    expect(node["@type"]).toBe("BreadcrumbList");
+    expect(node["itemListElement"]).toEqual([
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://x.dev/" },
+      { "@type": "ListItem", position: 2, name: "Docs", item: "https://x.dev/docs/" },
+    ]);
   });
 });

@@ -2,44 +2,37 @@
 // @rafters/astro-meta/components/SiteMeta.astro
 //
 // Site-level head fragment: generator, canonical URL, Open Graph core,
-// Twitter card, description, locale. Drop into a layout's <head>; the
-// `site` prop defaults to the SiteIdentity configured in astroMeta({ site })
-// via the virtual:astro-meta/site module.
+// Twitter card, description, image, article timestamps, locale. Drop into a
+// layout's <head>; the `site` prop defaults to the SiteIdentity configured in
+// astroMeta({ site }) via the virtual:astro-meta/site module.
+//
+// The tag rendering is the pure renderSiteMeta() so the component and its unit
+// tests share one implementation; the component only resolves defaults.
 
 import type { SiteIdentity } from "../index.js";
+import { renderSiteMeta } from "../internal/render-site-meta.js";
+import type { SiteMetaOptions } from "../internal/render-site-meta.js";
 import { site as defaultSite } from "virtual:astro-meta/site";
 
-export interface Props {
+export interface Props extends SiteMetaOptions {
   /** Override the integration-configured SiteIdentity. */
   site?: SiteIdentity;
   /** Route for canonical and og:url. Defaults to Astro.url.pathname. */
   route?: string;
-  /** Per-page title override. Falls back to site.name. */
-  title?: string;
-  /** Per-page description override. Falls back to site.description. */
-  description?: string;
 }
 
-const { site = defaultSite, route = Astro.url.pathname, title, description } = Astro.props;
-const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
-const pageUrl = `${site.url}${normalizedRoute}`;
-const effectiveTitle = title ?? site.name;
-const effectiveDescription = description ?? site.description;
+const {
+  site = defaultSite,
+  route = Astro.url.pathname,
+  title,
+  description,
+  ogType,
+  publishedTime,
+  modifiedTime,
+  image,
+} = Astro.props;
+
+const html = renderSiteMeta(site, route, { title, description, ogType, publishedTime, modifiedTime, image });
 ---
 
-<meta name="generator" content="@rafters/astro-meta" />
-<link rel="canonical" href={pageUrl} />
-<meta property="og:site_name" content={site.name} />
-<meta property="og:title" content={effectiveTitle} />
-<meta property="og:url" content={pageUrl} />
-<meta property="og:type" content="website" />
-<meta name="twitter:card" content="summary_large_image" />
-{
-  effectiveDescription && (
-    <>
-      <meta name="description" content={effectiveDescription} />
-      <meta property="og:description" content={effectiveDescription} />
-    </>
-  )
-}
-{site.locale && <meta property="og:locale" content={site.locale} />}
+<Fragment set:html={html} />

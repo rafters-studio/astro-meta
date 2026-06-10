@@ -131,3 +131,102 @@ export function renderSchemaScript(objects: readonly JsonLdObject[]): string {
       : renderJsonLd(objects as JsonLdObject[]);
   return `<script type="application/ld+json">${payload}</script>`;
 }
+
+// ─── Typed builders for the common per-page types ───────────────────────────
+//
+// defineEntities covers the site-shared Organization/Person graph. These cover
+// the per-page nodes sites otherwise hand-roll as raw JsonLdObjects:
+// SoftwareApplication for a product/home page, Article/TechArticle/BlogPosting
+// for docs and posts, BreadcrumbList for navigation. Each returns a plain
+// JsonLdObject so it composes with mergeGraph and <SchemaScript> like any other.
+
+/** A reference to another node in the graph by its `@id`. */
+export interface NodeRef {
+  "@id": string;
+}
+
+export interface SoftwareApplicationInput {
+  "@id"?: string;
+  name: string;
+  url?: string;
+  description?: string;
+  /** e.g. "DeveloperApplication", "WebApplication". */
+  applicationCategory?: string;
+  operatingSystem?: string;
+  /** Free software: { price: "0", priceCurrency: "USD" }. */
+  offers?: { price: string; priceCurrency: string };
+  sameAs?: readonly string[];
+}
+
+/** Build a SoftwareApplication node (product, CLI, app home page). */
+export function softwareApplication(input: SoftwareApplicationInput): JsonLdObject {
+  const out: Record<string, JsonLdValue> = { "@type": "SoftwareApplication", name: input.name };
+  if (input["@id"] !== undefined) out["@id"] = input["@id"];
+  if (input.url !== undefined) out["url"] = input.url;
+  if (input.description !== undefined) out["description"] = input.description;
+  if (input.applicationCategory !== undefined)
+    out["applicationCategory"] = input.applicationCategory;
+  if (input.operatingSystem !== undefined) out["operatingSystem"] = input.operatingSystem;
+  if (input.offers !== undefined)
+    out["offers"] = {
+      "@type": "Offer",
+      price: input.offers.price,
+      priceCurrency: input.offers.priceCurrency,
+    };
+  if (input.sameAs !== undefined) out["sameAs"] = [...input.sameAs];
+  return out as JsonLdObject;
+}
+
+export type ArticleType = "Article" | "TechArticle" | "BlogPosting";
+
+export interface ArticleInput {
+  "@id"?: string;
+  /** Schema.org subtype. Default "Article". */
+  type?: ArticleType;
+  headline: string;
+  description?: string;
+  url?: string;
+  /** ISO 8601. */
+  datePublished?: string;
+  /** ISO 8601. */
+  dateModified?: string;
+  author?: NodeRef;
+  publisher?: NodeRef;
+  image?: string | readonly string[];
+}
+
+/** Build an Article / TechArticle / BlogPosting node for a docs page or post. */
+export function article(input: ArticleInput): JsonLdObject {
+  const out: Record<string, JsonLdValue> = {
+    "@type": input.type ?? "Article",
+    headline: input.headline,
+  };
+  if (input["@id"] !== undefined) out["@id"] = input["@id"];
+  if (input.description !== undefined) out["description"] = input.description;
+  if (input.url !== undefined) out["url"] = input.url;
+  if (input.datePublished !== undefined) out["datePublished"] = input.datePublished;
+  if (input.dateModified !== undefined) out["dateModified"] = input.dateModified;
+  if (input.author !== undefined) out["author"] = { "@id": input.author["@id"] };
+  if (input.publisher !== undefined) out["publisher"] = { "@id": input.publisher["@id"] };
+  if (input.image !== undefined)
+    out["image"] = typeof input.image === "string" ? input.image : [...input.image];
+  return out as JsonLdObject;
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  url: string;
+}
+
+/** Build a BreadcrumbList node from an ordered list of name/url pairs. */
+export function breadcrumbList(items: readonly BreadcrumbItem[]): JsonLdObject {
+  return {
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+}

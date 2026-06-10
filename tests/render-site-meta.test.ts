@@ -44,6 +44,58 @@ describe("renderSiteMeta", () => {
     const out = renderSiteMeta({ url: "https://example.com", name: "Example" }, "about");
     expect(out).toContain('<link rel="canonical" href="https://example.com/about">');
   });
+
+  it("overrides title and description per page", () => {
+    const out = renderSiteMeta(
+      { url: "https://example.com", name: "Example", description: "Site default" },
+      "/post",
+      { title: "Post Title", description: "Post description" },
+    );
+    expect(out).toContain('<meta property="og:title" content="Post Title">');
+    expect(out).toContain('<meta name="description" content="Post description">');
+    expect(out).toContain('<meta property="og:description" content="Post description">');
+    expect(out).not.toContain("Site default");
+  });
+
+  it("emits og:type article with published and modified times", () => {
+    const out = renderSiteMeta({ url: "https://example.com", name: "Example" }, "/docs/x", {
+      ogType: "article",
+      publishedTime: "2026-01-01T00:00:00Z",
+      modifiedTime: "2026-06-01T00:00:00Z",
+    });
+    expect(out).toContain('<meta property="og:type" content="article">');
+    expect(out).toContain(
+      '<meta property="article:published_time" content="2026-01-01T00:00:00Z">',
+    );
+    expect(out).toContain('<meta property="article:modified_time" content="2026-06-01T00:00:00Z">');
+  });
+
+  it("does not emit article timestamps when ogType is website", () => {
+    const out = renderSiteMeta({ url: "https://example.com", name: "Example" }, "/", {
+      publishedTime: "2026-01-01T00:00:00Z",
+    });
+    expect(out).toContain('<meta property="og:type" content="website">');
+    expect(out).not.toContain("article:published_time");
+  });
+
+  it("emits og:image and twitter:image, resolving a site-relative path", () => {
+    const out = renderSiteMeta({ url: "https://example.com", name: "Example" }, "/", {
+      image: "/social/card.png",
+    });
+    expect(out).toContain(
+      '<meta property="og:image" content="https://example.com/social/card.png">',
+    );
+    expect(out).toContain(
+      '<meta name="twitter:image" content="https://example.com/social/card.png">',
+    );
+  });
+
+  it("keeps an absolute image URL as-is", () => {
+    const out = renderSiteMeta({ url: "https://example.com", name: "Example" }, "/", {
+      image: "https://cdn.example.org/card.png",
+    });
+    expect(out).toContain('<meta property="og:image" content="https://cdn.example.org/card.png">');
+  });
 });
 
 describe("injectIntoHead", () => {

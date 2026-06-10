@@ -214,20 +214,20 @@ See [`src/index.ts`](./src/index.ts) and each subpath module file for the full c
 
 ### Subpath exports.
 
-| Entry                                               | Contents                                                                                             |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `@rafters/astro-meta`                               | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`                                      |
-| `@rafters/astro-meta/astro`                         | `astroMeta(opts)`: the Astro integration entry point                                                 |
-| `@rafters/astro-meta/components/SiteMeta.astro`     | Props: `site`, optional `route?`, `title?`, `description?`; emits canonical + OG core + Twitter card |
-| `@rafters/astro-meta/components/SchemaScript.astro` | Props: `graph: JsonLdObject \| JsonLdObject[]`; emits one `<script type="application/ld+json">`      |
-| `@rafters/astro-meta/components/OgImage.astro`      | Props: `site`, optional `route?`, `width?`, `height?`, `alt?`; emits `og:image` meta tags            |
-| `@rafters/astro-meta/schema`                        | `JsonLdObject`, `renderJsonLd`, `mergeGraph`, `SchemaModule`, `collectSchemas`                       |
-| `@rafters/astro-meta/entities`                      | `defineEntities`, `OrganizationEntity`, `PersonEntity`                                               |
-| `@rafters/astro-meta/llms-txt`                      | `LlmsTxtEntry`, `LlmsTxtSource`, `buildLlmsTxt`                                                      |
-| `@rafters/astro-meta/robots`                        | `RobotsConfig`, `ContentSignalsPolicy`, `aiCrawlers`, renderers                                      |
-| `@rafters/astro-meta/sitemap`                       | `SitemapEntry`, `SitemapSource`, `renderSitemap`, `renderSitemapIndex`                               |
-| `@rafters/astro-meta/og`                            | `OgModule`, `SatoriElement`, `renderOg`                                                              |
-| `@rafters/astro-meta/audit`                         | `AuditRule`, `AuditRouteReport`, `AuditReport`, `runAudit`                                           |
+| Entry                                               | Contents                                                                                                                                                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@rafters/astro-meta`                               | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`                                                                                                                           |
+| `@rafters/astro-meta/astro`                         | `astroMeta(opts)`: the Astro integration entry point                                                                                                                                      |
+| `@rafters/astro-meta/components/SiteMeta.astro`     | Props: `site`, optional `route?`, `title?`, `description?`, `ogType?`, `publishedTime?`, `modifiedTime?`, `image?`; emits canonical + OG core (website or article) + Twitter card + image |
+| `@rafters/astro-meta/components/SchemaScript.astro` | Props: `graph: JsonLdObject \| JsonLdObject[]`; emits one `<script type="application/ld+json">`                                                                                           |
+| `@rafters/astro-meta/components/OgImage.astro`      | Props: `site`, optional `route?`, `width?`, `height?`, `alt?`; emits `og:image` meta tags                                                                                                 |
+| `@rafters/astro-meta/schema`                        | `JsonLdObject`, `renderJsonLd`, `mergeGraph`, `SchemaModule`, `collectSchemas`; typed builders `softwareApplication`, `article`, `breadcrumbList`                                         |
+| `@rafters/astro-meta/entities`                      | `defineEntities`, `OrganizationEntity`, `PersonEntity`                                                                                                                                    |
+| `@rafters/astro-meta/llms-txt`                      | `LlmsTxtEntry`, `LlmsTxtSource`, `buildLlmsTxt`                                                                                                                                           |
+| `@rafters/astro-meta/robots`                        | `RobotsConfig`, `ContentSignalsPolicy`, `aiCrawlers`, renderers                                                                                                                           |
+| `@rafters/astro-meta/sitemap`                       | `SitemapEntry`, `SitemapSource`, `renderSitemap`, `renderSitemapIndex`                                                                                                                    |
+| `@rafters/astro-meta/og`                            | `OgModule`, `SatoriElement`, `renderOg`                                                                                                                                                   |
+| `@rafters/astro-meta/audit`                         | `AuditRule`, `AuditRouteReport`, `AuditReport`, `runAudit`                                                                                                                                |
 
 ## Why not Yoast.
 
