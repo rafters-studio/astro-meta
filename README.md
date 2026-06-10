@@ -110,6 +110,46 @@ The integration writes file artifacts at `build:done`. Head tags are the layout'
 
 `virtual:astro-meta/site` is typed via Astro's `injectTypes`. Consumer `astro check` resolves the import to a strict `SiteIdentity` with no `vite-env.d.ts` declaration and no triple-slash directive in the consumer source.
 
+Per-page variants pass overrides to the same components. A docs page declares the article type, timestamps, a social image, and a `TechArticle` node with the `article` builder:
+
+```astro
+---
+// a docs page layout
+import SiteMeta from "@rafters/astro-meta/components/SiteMeta.astro";
+import SchemaScript from "@rafters/astro-meta/components/SchemaScript.astro";
+import { article, mergeGraph } from "@rafters/astro-meta/schema";
+import { site } from "virtual:astro-meta/site";
+
+const { title, description, published, modified } = Astro.props;
+const pageUrl = `${site.url}${Astro.url.pathname}`;
+const graph = mergeGraph([
+  article({
+    "@id": `${pageUrl}#article`,
+    type: "TechArticle",
+    headline: title,
+    description,
+    url: pageUrl,
+    datePublished: published,
+    dateModified: modified,
+    publisher: { "@id": `${site.url}#org` },
+  }),
+]);
+---
+<head>
+  <SiteMeta
+    title={title}
+    description={description}
+    ogType="article"
+    publishedTime={published}
+    modifiedTime={modified}
+    image="/social/docs-card.png"
+  />
+  <SchemaScript graph={graph} />
+</head>
+```
+
+`image` may be absolute or site-relative; relative paths resolve against `site.url`. The `softwareApplication` and `breadcrumbList` builders compose the same way for a product home page or navigation trail.
+
 Declare an llms.txt source:
 
 ```ts
@@ -137,18 +177,18 @@ export async function collect() {
 
 Five file-emission surfaces, three head-composition components, two type/helper subpaths, the root entry, and the integration:
 
-| Surface    | Subpath                            | What it emits                                                                                                                                                                                    |
-| ---------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Entry      | `@rafters/astro-meta`              | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`                                                                                                                                  |
-| Components | `@rafters/astro-meta/components/*` | `SiteMeta.astro`, `SchemaScript.astro`, `OgImage.astro`; drop into a layout `<head>` for canonical, OG, Twitter card, and JSON-LD tags                                                           |
-| Schema     | `@rafters/astro-meta/schema`       | JSON-LD primitives (`renderJsonLd`, `mergeGraph`) plus `SchemaScript` for layout composition; no HTML mutation                                                                                   |
-| Entities   | `@rafters/astro-meta/entities`     | Organization + Person with sameAs, knowsAbout, founder, employee; validates sameAs URLs (https required, must parse); enforces @id uniqueness; warns on employee/worksFor reciprocity mismatches |
-| llms.txt   | `@rafters/astro-meta/llms-txt`     | `/llms.txt` and `/llms-full.txt`; auto-mirrors robots wildcard disallow so the two artifacts cannot drift                                                                                        |
-| Robots     | `@rafters/astro-meta/robots`       | `robots.txt` with curated AI-crawler matrix + Cloudflare `_headers` Content-Signals                                                                                                              |
-| Sitemap    | `@rafters/astro-meta/sitemap`      | `sitemap.xml` + `sitemap-index` chunked at the 50,000-URL protocol cap, with hreflang alternates                                                                                                 |
-| OG         | `@rafters/astro-meta/og`           | Per-route PNG via satori + @resvg/resvg-js (optional peers, dynamic-imported); 1200x630 default                                                                                                  |
-| Audit      | `@rafters/astro-meta/audit`        | Build-time GEO readability score per route via linkedom DOM parse; optional CI threshold gate                                                                                                    |
-| Astro      | `@rafters/astro-meta/astro`        | `astroMeta(opts)`: the integration entry point that wires all file-emission surfaces                                                                                                             |
+| Surface    | Subpath                            | What it emits                                                                                                                                                                                                         |
+| ---------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry      | `@rafters/astro-meta`              | `SiteIdentity`, `PageContext`, `MetaContext`, `defineSite`, `z`                                                                                                                                                       |
+| Components | `@rafters/astro-meta/components/*` | `SiteMeta.astro` (canonical, OG core, Twitter card, configurable `og:type` website/article with `article:*` timestamps, social `image`), `SchemaScript.astro` (JSON-LD), `OgImage.astro`; drop into a layout `<head>` |
+| Schema     | `@rafters/astro-meta/schema`       | JSON-LD primitives (`renderJsonLd`, `mergeGraph`, `collectSchemas`) and typed builders (`softwareApplication`, `article`, `breadcrumbList`) plus `SchemaScript`; no HTML mutation                                     |
+| Entities   | `@rafters/astro-meta/entities`     | Organization + Person with sameAs, knowsAbout, founder, employee; validates sameAs URLs (https required, must parse); enforces @id uniqueness; warns on employee/worksFor reciprocity mismatches                      |
+| llms.txt   | `@rafters/astro-meta/llms-txt`     | `/llms.txt` and `/llms-full.txt`; auto-mirrors robots wildcard disallow so the two artifacts cannot drift                                                                                                             |
+| Robots     | `@rafters/astro-meta/robots`       | `robots.txt` with curated AI-crawler matrix + Cloudflare `_headers` Content-Signals                                                                                                                                   |
+| Sitemap    | `@rafters/astro-meta/sitemap`      | `sitemap.xml` + `sitemap-index` chunked at the 50,000-URL protocol cap, with hreflang alternates                                                                                                                      |
+| OG         | `@rafters/astro-meta/og`           | Per-route PNG via satori + @resvg/resvg-js (optional peers, dynamic-imported); 1200x630 default                                                                                                                       |
+| Audit      | `@rafters/astro-meta/audit`        | Build-time GEO readability score per route via linkedom DOM parse; optional CI threshold gate                                                                                                                         |
+| Astro      | `@rafters/astro-meta/astro`        | `astroMeta(opts)`: the integration entry point that wires all file-emission surfaces                                                                                                                                  |
 
 The integration writes file artifacts only. It never reads or mutates generated HTML. Head tags are consumer-owned; the three components are the composition surface.
 
