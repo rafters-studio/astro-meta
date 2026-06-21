@@ -10,7 +10,7 @@ The integration at `/astro` wires them together.
 
 ## Status.
 
-`0.1.0` is live on npm. Designed against Astro 6.1.9+. Lives inside Astro's own lifecycle, not next to it.
+`0.3.0` is live on npm. Designed against Astro 6.1.9+. Lives inside Astro's own lifecycle, not next to it.
 
 The integration runs at `astro:config:setup` (validation, warnings, `injectTypes` for the virtual module) and `astro:build:done` (file emissions). No request-time middleware. SSG and SSR consumers behave identically.
 
@@ -54,7 +54,7 @@ export default defineConfig({
       }),
       robots: {
         rules: [{ userAgent: "*", allow: ["/"] }],
-        contentSignals: { search: "yes", aiInput: "yes", aiTrain: "no" },
+        contentSignals: { policy: { search: "yes", aiInput: "yes", aiTrain: "no" } },
       },
     }),
   ],
@@ -184,8 +184,8 @@ Five file-emission surfaces, three head-composition components, two type/helper 
 | Schema     | `@rafters/astro-meta/schema`       | JSON-LD primitives (`renderJsonLd`, `mergeGraph`, `collectSchemas`) and typed builders (`softwareApplication`, `article`, `breadcrumbList`) plus `SchemaScript`; no HTML mutation                                     |
 | Entities   | `@rafters/astro-meta/entities`     | Organization + Person with sameAs, knowsAbout, founder, employee; validates sameAs URLs (https required, must parse); enforces @id uniqueness; warns on employee/worksFor reciprocity mismatches                      |
 | llms.txt   | `@rafters/astro-meta/llms-txt`     | `/llms.txt` and `/llms-full.txt`; auto-mirrors robots wildcard disallow so the two artifacts cannot drift                                                                                                             |
-| Robots     | `@rafters/astro-meta/robots`       | `robots.txt` with curated AI-crawler matrix + Cloudflare `_headers` Content-Signals                                                                                                                                   |
-| Sitemap    | `@rafters/astro-meta/sitemap`      | `sitemap.xml` + `sitemap-index` chunked at the 50,000-URL protocol cap, with hreflang alternates                                                                                                                      |
+| Robots     | `@rafters/astro-meta/robots`       | `robots.txt` with curated, categorized AI-crawler matrix, the singular `Content-Signal:` directive plus Cloudflare `_headers`, a configurable `enforce` policy, and a vocabulary switch                                |
+| Sitemap    | `@rafters/astro-meta/sitemap`      | `sitemap.xml` + `sitemap-index` chunked at the 50,000-URL and 50MB protocol caps, with hreflang alternates                                                                                                            |
 | OG         | `@rafters/astro-meta/og`           | Per-route PNG via satori + @resvg/resvg-js (optional peers, dynamic-imported); 1200x630 default                                                                                                                       |
 | Audit      | `@rafters/astro-meta/audit`        | Build-time GEO readability score per route via linkedom DOM parse; optional CI threshold gate                                                                                                                         |
 | Astro      | `@rafters/astro-meta/astro`        | `astroMeta(opts)`: the integration entry point that wires all file-emission surfaces                                                                                                                                  |
@@ -277,8 +277,8 @@ See [`src/index.ts`](./src/index.ts) and each subpath module file for the full c
 | `@rafters/astro-meta/schema`                        | `JsonLdObject`, `renderJsonLd`, `mergeGraph`, `SchemaModule`, `collectSchemas`; typed builders `softwareApplication`, `article`, `breadcrumbList`                                         |
 | `@rafters/astro-meta/entities`                      | `defineEntities`, `OrganizationEntity`, `PersonEntity`                                                                                                                                    |
 | `@rafters/astro-meta/llms-txt`                      | `LlmsTxtEntry`, `LlmsTxtSource`, `buildLlmsTxt`                                                                                                                                           |
-| `@rafters/astro-meta/robots`                        | `RobotsConfig`, `ContentSignalsPolicy`, `aiCrawlers`, renderers                                                                                                                           |
-| `@rafters/astro-meta/sitemap`                       | `SitemapEntry`, `SitemapSource`, `renderSitemap`, `renderSitemapIndex`                                                                                                                    |
+| `@rafters/astro-meta/robots`                        | `RobotsConfig`, `ContentSignalsConfig`, `ContentSignalsPolicy`, `ContentSignalVocabulary`, `ContentSignalEnforcement`, `CrawlerCategory`, `CrawlerInfo`, `crawlerMatrix`, `aiCrawlers`, `AiCrawler`, `computeCrawlerDisallows`, renderers |
+| `@rafters/astro-meta/sitemap`                       | `SitemapEntry`, `SitemapSource`, `SitemapChunkOptions`, `SITEMAP_URL_LIMIT`, `SITEMAP_BYTE_LIMIT`, `buildSitemapFiles`, `collectEntries`, `renderSitemap`, `renderSitemapIndex`           |
 | `@rafters/astro-meta/og`                            | `OgModule`, `SatoriElement`, `renderOg`                                                                                                                                                   |
 | `@rafters/astro-meta/audit`                         | `AuditRule`, `AuditRouteReport`, `AuditReport`, `runAudit`                                                                                                                                |
 
@@ -288,11 +288,11 @@ Yoast, RankMath, and AIOSEO sell "tick the SEO box" as a single bundle. The arch
 
 astro-meta inverts the bundling. A marketing site opts into robots, sitemap, and OG. A docs site opts into llms.txt, schema, and audit. A blog opts into all of them. Each surface is independently imported, independently typed, independently testable.
 
-The category also has gaps none of the WordPress-era tools close. Nobody ships a maintained AI-crawler matrix as a typed primitive; most sites copy a robots.txt from a blog post and hope the agent names are still correct. Nobody ships llms.txt generation for marketing sites; Mintlify owns it for docs, nobody owns it for the rest. Nobody ships Cloudflare Pages Content-Signals header emission as a build artifact. Nobody ships a build-hook GEO audit that fails the deploy before a regression reaches production; pagesmith.ai ships a Chrome extension, which is the wrong boundary.
+The category also has gaps none of the WordPress-era tools close. Nobody ships a maintained AI-crawler matrix as a typed primitive; most sites copy a robots.txt from a blog post and hope the agent names are still correct. Nobody ships llms.txt generation for marketing sites; Mintlify owns it for docs, nobody owns it for the rest. Nobody ships Cloudflare Pages Content-Signal header emission as a build artifact. Nobody ships a build-hook GEO audit that fails the deploy before a regression reaches production; pagesmith.ai ships a Chrome extension, which is the wrong boundary.
 
 Not a monitoring SaaS. Not a framework. A typed contract at the build boundary that the sites you already know how to write can consume one surface at a time.
 
-astro-meta is MIT-licensed because being legible to a crawler shouldn't require a consultant. Schema.org, robots, sitemap, llms.txt, the AI-crawler matrix, Cloudflare's Content-Signals header. These are the artifacts a 2026 site needs to be readable by Google, Perplexity, Claude, and the next model. They are plumbing, not strategy. Yoast Premium gates schema markup at $99 a year. pagesmith puts GEO behind a $19-per-month Pro tier. astro-meta ships the same artifacts at no charge because the alternative is a tax on being findable.
+astro-meta is MIT-licensed because being legible to a crawler shouldn't require a consultant. Schema.org, robots, sitemap, llms.txt, the AI-crawler matrix, Cloudflare's Content-Signal header. These are the artifacts a 2026 site needs to be readable by Google, Perplexity, Claude, and the next model. They are plumbing, not strategy. Yoast Premium gates schema markup at $99 a year. pagesmith puts GEO behind a $19-per-month Pro tier. astro-meta ships the same artifacts at no charge because the alternative is a tax on being findable.
 
 ## Supply chain.
 
