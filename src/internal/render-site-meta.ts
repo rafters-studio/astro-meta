@@ -85,8 +85,12 @@ export function injectIntoHead(html: string, injection: string): string {
   return `${html.slice(0, idx)}  ${injection}\n${html.slice(idx)}`;
 }
 
-const ABSOLUTE_URL_RE = /^https?:\/\/[^/\s]+/;
-
 export function isAbsoluteUrl(value: string): boolean {
-  return ABSOLUTE_URL_RE.test(value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return url.protocol === "http:" || url.protocol === "https:";
 }

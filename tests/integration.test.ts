@@ -170,7 +170,7 @@ describe("astroMeta integration", () => {
       site: defineSite({ url: "https://example.com", name: "Example" }),
       robots: {
         rules: [{ userAgent: "*", allow: ["/"] }],
-        contentSignals: { search: "yes", aiInput: "yes", aiTrain: "no" },
+        contentSignals: { policy: { search: "yes", aiInput: "yes", aiTrain: "no" } },
       },
     });
     await getHook(
@@ -180,12 +180,27 @@ describe("astroMeta integration", () => {
     expect(existsSync(join(distDir, "_headers"))).toBe(true);
     const headers = readFileSync(join(distDir, "_headers"), "utf-8");
     expect(headers).toContain("/*");
-    expect(headers).toContain("Content-Signals: search=yes, ai-input=yes, ai-train=no");
+    expect(headers).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=no");
   });
 
   it("build:done skips _headers when contentSignals is absent", async () => {
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "_headers"))).toBe(false);
+  });
+
+  it("build:done skips _headers when emit.header is false", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      robots: {
+        rules: [{ userAgent: "*", allow: ["/"] }],
+        contentSignals: { policy: { aiTrain: "no" }, emit: { header: false } },
+      },
     });
     await getHook(
       integ,
@@ -213,6 +228,34 @@ describe("astroMeta integration", () => {
     const sitemap = readFileSync(join(distDir, "sitemap.xml"), "utf-8");
     expect(sitemap).toContain("<loc>https://example.com/</loc>");
     expect(sitemap).toContain("<loc>https://example.com/about</loc>");
+  });
+
+  it("build:done aborts atomically when a sitemap source throws (no partial robots.txt)", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      robots: { rules: [{ userAgent: "*", allow: ["/"] }] },
+      sitemap: {
+        sources: [
+          {
+            key: ["bad"],
+            collect: () => {
+              throw new Error("malformed page frontmatter");
+            },
+          },
+        ],
+      },
+    });
+    await expect(
+      getHook(
+        integ,
+        "astro:build:done",
+      )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>),
+    ).rejects.toThrow(/malformed page frontmatter/);
+    // The regression this guards: robots.txt used to be written before sitemap
+    // collection ran, so a throwing source left robots.txt with no sitemap.xml.
+    // Bodies are now built before any write, so a failure writes nothing.
+    expect(existsSync(join(distDir, "robots.txt"))).toBe(false);
+    expect(existsSync(join(distDir, "sitemap.xml"))).toBe(false);
   });
 
   it("build:done splits sitemap into chunks plus index when count exceeds chunkSize", async () => {
