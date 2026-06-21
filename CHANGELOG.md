@@ -1,5 +1,19 @@
 # @rafters/astro-meta
 
+## 0.3.0
+
+Content-signals correctness and enforcement. Found dogfooding the package across the rafters-studio sites: the emitted policy was a soft hint with two real bugs, and a single malformed page could silently drop the sitemap. There is no finished standard here (Cloudflare's Content Signals draft has expired; the IETF AIPREF drafts are not yet RFCs), so this release implements the production-deployed Cloudflare `Content-Signal` form correctly, labels it honestly, and makes enforcement a configured choice rather than an opinion.
+
+Breaking: `RobotsConfig.contentSignals` is now a `ContentSignalsConfig` object (`{ policy, vocabulary?, emit?, preamble?, enforce?, crawlers? }`) rather than a bare policy. A bare policy moves under `contentSignals.policy`.
+
+- The content-signal directive is now emitted inside robots.txt (in the wildcard group), not only in the Cloudflare `_headers` file, and the header field is the spec-correct singular `Content-Signal:` rather than the prior non-conformant plural `Content-Signals:`. An optional canonical preamble (the "condition of accessing this website" block with the EU Directive 2019/790 Article 4 reservation) is emitted by default.
+- The curated AI-crawler matrix is now categorized (training, training-control, ai-input, unsplittable, link-preview) and drives a configurable `enforce` setting: `"declarative"` (default, signals only, no behavior change on upgrade), `"block-training"` (Disallow the crawlers each restrictive signal governs, with retrieval and link-preview crawlers left allowed), and `"block-all"` (the blunt Cloudflare-style instrument). Per-crawler overrides via `contentSignals.crawlers`.
+- A `vocabulary` switch selects the Cloudflare `Content-Signal` form (default) or the draft IETF AIPREF `Content-Usage` form behind an explicit "unstable" label.
+- robots.txt rendering now merges rules per user-agent per RFC 9309 (no duplicate `User-agent: *` groups), preserves path case, and validates against newline injection in agent and path values.
+- Sitemap files now split on the 50MB uncompressed byte limit as well as the 50,000-URL limit (`sitemap.maxBytes` / `sitemap.maxUrls`), measuring rendered UTF-8 size.
+- The `build:done` hook now builds every artifact body before writing any file, so a throwing sitemap or llms source aborts atomically instead of leaving robots.txt written with no sitemap.xml.
+- `isAbsoluteUrl` validates through the URL parser instead of a permissive regex.
+
 ## 0.2.0
 
 Head-component fidelity, so a site that already hand-rolls a good head can adopt the components without losing anything. Found dogfooding the package on runlegion.dev (#45): the generic head could not express article OG type, a social image, or per-page Schema.org nodes, so `SiteMeta` would have regressed an existing head.

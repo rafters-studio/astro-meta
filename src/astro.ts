@@ -33,7 +33,15 @@ import { isAbsoluteUrl } from "./internal/render-site-meta.js";
 export interface AstroMetaOptions {
   site: SiteIdentity;
   robots?: RobotsConfig;
-  sitemap?: { sources: readonly SitemapSource[]; chunkSize?: number };
+  sitemap?: {
+    sources: readonly SitemapSource[];
+    /** Legacy alias for maxUrls. */
+    chunkSize?: number;
+    /** Max URLs per sitemap file. Default 50,000. */
+    maxUrls?: number;
+    /** Max uncompressed bytes per sitemap file. Default 50MB. */
+    maxBytes?: number;
+  };
   llmsTxt?: { sources: readonly LlmsTxtSource[]; full?: boolean };
   og?: { modules: readonly OgModule[] };
   audit?: { rules?: readonly AuditRule[]; threshold?: number; failBuild?: boolean };
@@ -100,30 +108,27 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         const outDir = fileURLToPath(dir);
         await mkdir(outDir, { recursive: true });
 
+        // Build every artifact body BEFORE writing any of them. Collection of
+        // sitemap/llms sources can throw on a malformed page; doing it first
+        // means such a failure aborts atomically instead of leaving robots.txt
+        // written but sitemap.xml missing.
         const robotsBody = renderRobotsForOpts(opts);
-        await writeFile(join(outDir, "robots.txt"), robotsBody, "utf-8");
-
-        const sitemapFiles = await buildSitemapForOpts(opts, buildLogger);
-        await Promise.all(
-          sitemapFiles.map((file) => writeFile(join(outDir, file.path), file.content, "utf-8")),
-        );
-
-        const llmsFiles = await buildLlmsTxtForOpts(opts);
-        await Promise.all(
-          llmsFiles.map((file) => writeFile(join(outDir, file.path), file.content, "utf-8")),
-        );
-
-        const written = [
-          "robots.txt",
-          ...sitemapFiles.map((f) => f.path),
-          ...llmsFiles.map((f) => f.path),
-        ];
-
+        const [sitemapFiles, llmsFiles] = await Promise.all([
+          buildSitemapForOpts(opts, buildLogger),
+          buildLlmsTxtForOpts(opts),
+        ]);
         const headersBody = renderHeadersFile(opts);
-        if (headersBody.length > 0) {
-          await writeFile(join(outDir, "_headers"), headersBody, "utf-8");
-          written.push("_headers");
-        }
+
+        const coreFiles: { path: string; content: string }[] = [
+          { path: "robots.txt", content: robotsBody },
+          ...sitemapFiles,
+          ...llmsFiles,
+          ...(headersBody.length > 0 ? [{ path: "_headers", content: headersBody }] : []),
+        ];
+        await Promise.all(
+          coreFiles.map((file) => writeFile(join(outDir, file.path), file.content, "utf-8")),
+        );
+        const written = coreFiles.map((f) => f.path);
 
         const ogCount = await renderOgPngs(opts, outDir, buildLogger);
         if (ogCount > 0) {
@@ -197,8 +202,10 @@ function renderRobotsForOpts(opts: AstroMetaOptions): string {
 }
 
 function renderHeadersFile(opts: AstroMetaOptions): string {
-  if (!opts.robots?.contentSignals) return "";
-  return renderContentSignalsHeadersFile(opts.robots.contentSignals);
+  const cs = opts.robots?.contentSignals;
+  if (!cs) return "";
+  if (cs.emit?.header === false) return "";
+  return renderContentSignalsHeadersFile(cs.policy, cs.vocabulary);
 }
 
 async function buildLlmsTxtForOpts(
@@ -314,5 +321,8 @@ async function buildSitemapForOpts(
     ctx: { site: opts.site },
     logger,
   });
-  return buildSitemapFiles(entries, opts.site.url, opts.sitemap.chunkSize);
+  return buildSitemapFiles(entries, opts.site.url, {
+    maxUrls: opts.sitemap.maxUrls ?? opts.sitemap.chunkSize,
+    maxBytes: opts.sitemap.maxBytes,
+  });
 }

@@ -210,19 +210,32 @@ Module keys are arrays. The build pipeline composes by prefix:
 
 The same convention governs sitemap segmentation, llms.txt sections, and audit scoping. It matches the `@rafters/astro-data` key convention so the two packages compose cleanly inside the same site.
 
-### Cloudflare emissions.
+### Content signals.
 
-`robots.contentSignals` emits a Cloudflare Pages `_headers` entry setting the `Content-Signals` policy header on every route:
+`robots.contentSignals` declares a content-usage policy and controls how it is emitted:
 
+```ts
+contentSignals: {
+  policy: { search: "yes", aiInput: "yes", aiTrain: "no" },
+  vocabulary: "content-signal", // Cloudflare (default) | "content-usage" (draft IETF, unstable)
+  emit: { directive: true, header: true }, // robots.txt line, Cloudflare _headers, or both
+  preamble: true,               // the legal comment block (EU Directive 2019/790 Article 4)
+  enforce: "declarative",       // "declarative" | "block-training" | "block-all"
+  crawlers: {},                 // per-user-agent overrides on the curated matrix
+}
 ```
-Content-Signals: search=yes, ai-input=yes, ai-train=no
-```
 
-This is a crawler-policy expression that survives the deploy boundary. Other hosts ignore the `_headers` file; Cloudflare picks it up at deploy time. The configuration lives in `robots`, not in a separate surface, because the `_headers` disallow matrix must stay in sync with `robots.txt`; two separate configs drift.
+The directive is written into `robots.txt` (in the wildcard group) as the spec-correct singular `Content-Signal:`, and the same policy is set as the `Content-Signal:` HTTP header through a Cloudflare Pages `_headers` entry. There is no finished standard: the Cloudflare Content Signals Policy is the production-deployed form and the default; the IETF AIPREF `Content-Usage` vocabulary is available behind the `vocabulary` switch but is a working-group draft, not an RFC. Content signals express preferences; they are advisory, and real enforcement against non-compliant crawlers needs the edge or WAF, not `robots.txt`.
 
 ### The robots crawler matrix.
 
-The `/robots` subpath ships a curated, maintained list: GPTBot, ClaudeBot, PerplexityBot, Google-Extended, Applebot-Extended, Bytespider, CCBot, and the other major AI training and inference crawlers. Unknown agents passed to the config emit a build warning. Typos in agent names do not silently produce a `robots.txt` that allows everything.
+The `/robots` subpath ships a curated, categorized list (training, training-control, ai-input, unsplittable, link-preview) covering GPTBot, ClaudeBot, PerplexityBot, Google-Extended, Applebot-Extended, Bytespider, CCBot, and the other major AI crawlers. The category determines what a restrictive signal does under `enforce`:
+
+- `declarative` (default): emit the signals only; write no `Disallow` blocks. Upgrading changes no crawler's access.
+- `block-training`: `ai-train=no` disallows model-training crawlers, the training opt-out control tokens (Google-Extended, Applebot-Extended), and the unsplittable Amazonbot; `ai-input=no` additionally disallows AI retrieval crawlers. Pure web-search and link-preview crawlers are never blocked.
+- `block-all`: any `no` signal disallows every AI crawler in the matrix except link-preview. The Cloudflare-style blunt instrument.
+
+Unknown agents passed to the config emit a build warning, so typos do not silently produce a `robots.txt` that allows everything.
 
 ### The audit rubric.
 

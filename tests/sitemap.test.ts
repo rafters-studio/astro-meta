@@ -190,4 +190,39 @@ describe("buildSitemapFiles", () => {
   it("exposes the sitemaps.org URL limit", () => {
     expect(SITEMAP_URL_LIMIT).toBe(50_000);
   });
+
+  it("accepts an options object with maxUrls", () => {
+    const files = buildSitemapFiles(mkEntries(5), "https://example.com", { maxUrls: 2 });
+    expect(files.map((f) => f.path)).toEqual([
+      "sitemap-0.xml",
+      "sitemap-1.xml",
+      "sitemap-2.xml",
+      "sitemap.xml",
+    ]);
+  });
+
+  it("splits on the byte cap even when the URL count fits", () => {
+    // A tiny maxBytes forces a split well under SITEMAP_URL_LIMIT.
+    const files = buildSitemapFiles(mkEntries(10), "https://example.com", { maxBytes: 300 });
+    expect(files.length).toBeGreaterThan(1);
+    expect(files.at(-1)?.path).toBe("sitemap.xml");
+    expect(files.at(-1)?.content).toContain("<sitemapindex");
+    // Every content file stays within the byte cap.
+    for (const f of files.slice(0, -1)) {
+      expect(new TextEncoder().encode(f.content).length).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("keeps an oversized single entry in its own chunk rather than dropping it", () => {
+    const files = buildSitemapFiles(mkEntries(2), "https://example.com", { maxBytes: 1 });
+    // 2 entries, each its own chunk, plus the index.
+    expect(files.map((f) => f.path)).toEqual(["sitemap-0.xml", "sitemap-1.xml", "sitemap.xml"]);
+  });
+
+  it("throws on non-positive maxUrls or maxBytes", () => {
+    expect(() => buildSitemapFiles(mkEntries(1), "https://example.com", 0)).toThrow(/> 0/);
+    expect(() => buildSitemapFiles(mkEntries(1), "https://example.com", { maxBytes: 0 })).toThrow(
+      /> 0/,
+    );
+  });
 });

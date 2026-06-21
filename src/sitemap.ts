@@ -34,6 +34,9 @@ export interface SitemapSource {
 /** Per-file URL cap from the sitemaps.org protocol. */
 export const SITEMAP_URL_LIMIT = 50_000;
 
+/** Per-file byte cap from the sitemaps.org protocol: 50MB, measured uncompressed. */
+export const SITEMAP_BYTE_LIMIT = 52_428_800;
+
 const escapeXml = (v: string): string =>
   v
     .replace(/&/g, "&amp;")
@@ -141,29 +144,84 @@ export interface SitemapFile {
   content: string;
 }
 
+export interface SitemapChunkOptions {
+  /** Max URLs per file. Default 50,000 (sitemaps.org). */
+  maxUrls?: number;
+  /** Max uncompressed bytes per file. Default 50MB (sitemaps.org). */
+  maxBytes?: number;
+}
+
+const ENCODER = new TextEncoder();
+const utf8Bytes = (s: string): number => ENCODER.encode(s).length;
+
+// Conservative fixed overhead of a urlset file: XML declaration plus the open
+// tag carrying BOTH namespaces (the larger, alternates-bearing form) plus the
+// close tag. Using the larger header guarantees a packed chunk never exceeds
+// maxBytes regardless of whether its entries declare hreflang alternates.
+const URLSET_WRAP_BYTES = utf8Bytes(
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:xhtml="http://www.w3.org/1999/xhtml">\n</urlset>\n`,
+);
+
 /**
- * Split entries across one or more sitemap files plus an index when count
- * exceeds chunkSize. Returns the files to write relative to dist/.
+ * Greedily pack entries into chunks bounded by BOTH maxUrls and maxBytes
+ * (whichever is hit first), measuring rendered UTF-8 byte size. A single entry
+ * larger than maxBytes still occupies its own chunk rather than being dropped.
+ */
+function packChunks(
+  entries: readonly SitemapEntry[],
+  maxUrls: number,
+  maxBytes: number,
+): SitemapEntry[][] {
+  const chunks: SitemapEntry[][] = [];
+  let current: SitemapEntry[] = [];
+  let currentBytes = URLSET_WRAP_BYTES;
+  for (const entry of entries) {
+    const entryBytes = utf8Bytes(renderUrlEntry(entry)) + 1; // +1 for the joining newline
+    const wouldOverflowBytes = current.length > 0 && currentBytes + entryBytes > maxBytes;
+    const wouldOverflowUrls = current.length >= maxUrls;
+    if (wouldOverflowUrls || wouldOverflowBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = URLSET_WRAP_BYTES;
+    }
+    current.push(entry);
+    currentBytes += entryBytes;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * Split entries across one or more sitemap files plus an index when a single
+ * file would exceed the per-file URL or byte limit. Returns files relative to
+ * dist/.
  *
- * Up to chunkSize entries: ["sitemap.xml"].
- * More than chunkSize: ["sitemap-0.xml", "sitemap-1.xml", ..., "sitemap.xml" (the index)].
+ * Within limits: ["sitemap.xml"].
+ * Over a limit: ["sitemap-0.xml", "sitemap-1.xml", ..., "sitemap.xml" (the index)].
+ *
+ * The third argument accepts a plain number (legacy: the URL cap) or an options
+ * object carrying maxUrls and maxBytes.
  */
 export function buildSitemapFiles(
   entries: readonly SitemapEntry[],
   siteUrl: string,
-  chunkSize: number = SITEMAP_URL_LIMIT,
+  opts: number | SitemapChunkOptions = {},
 ): SitemapFile[] {
-  if (chunkSize <= 0) {
-    throw new Error(`@rafters/astro-meta/sitemap: chunkSize must be > 0 (got ${chunkSize})`);
+  const maxUrls = typeof opts === "number" ? opts : (opts.maxUrls ?? SITEMAP_URL_LIMIT);
+  const maxBytes =
+    typeof opts === "number" ? SITEMAP_BYTE_LIMIT : (opts.maxBytes ?? SITEMAP_BYTE_LIMIT);
+  if (maxUrls <= 0) {
+    throw new Error(`@rafters/astro-meta/sitemap: maxUrls must be > 0 (got ${maxUrls})`);
   }
-  if (entries.length <= chunkSize) {
-    return [{ path: "sitemap.xml", content: renderSitemap(entries) }];
+  if (maxBytes <= 0) {
+    throw new Error(`@rafters/astro-meta/sitemap: maxBytes must be > 0 (got ${maxBytes})`);
+  }
+
+  const chunks = packChunks(entries, maxUrls, maxBytes);
+  if (chunks.length <= 1) {
+    return [{ path: "sitemap.xml", content: renderSitemap(chunks[0] ?? []) }];
   }
   const files: SitemapFile[] = [];
-  const chunks: SitemapEntry[][] = [];
-  for (let i = 0; i < entries.length; i += chunkSize) {
-    chunks.push(entries.slice(i, i + chunkSize));
-  }
   const chunkUrls: string[] = [];
   for (let i = 0; i < chunks.length; i++) {
     const path = `sitemap-${i}.xml`;
