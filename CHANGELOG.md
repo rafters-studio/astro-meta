@@ -10,7 +10,7 @@ Breaking: `RobotsConfig.contentSignals` is now a `ContentSignalsConfig` object (
 - The curated AI-crawler matrix is now categorized (training, training-control, ai-input, unsplittable, link-preview) and drives a configurable `enforce` setting: `"declarative"` (default, signals only, no behavior change on upgrade), `"block-training"` (Disallow the crawlers each restrictive signal governs, with retrieval and link-preview crawlers left allowed), and `"block-all"` (the blunt Cloudflare-style instrument). Per-crawler overrides via `contentSignals.crawlers`.
 - A `vocabulary` switch selects the Cloudflare `Content-Signal` form (default) or the draft IETF AIPREF `Content-Usage` form behind an explicit "unstable" label.
 - robots.txt rendering now merges rules per user-agent per RFC 9309 (no duplicate `User-agent: *` groups), preserves path case, and validates against newline injection in agent and path values.
-- Sitemap files now split on the 50MB uncompressed byte limit as well as the 50,000-URL limit (`sitemap.maxBytes` / `sitemap.maxUrls`), measuring rendered UTF-8 size.
+- Sitemap files now split on the 50MB uncompressed byte limit as well as the 50,000-URL limit (`sitemap.maxBytes` / `sitemap.maxUrls`), measuring rendered UTF-8 size. The prior `sitemap.chunkSize` option remains supported as an alias for `maxUrls`, so existing configs do not break.
 - The `build:done` hook now builds every artifact body before writing any file, so a throwing sitemap or llms source aborts atomically instead of leaving robots.txt written with no sitemap.xml.
 - `isAbsoluteUrl` validates through the URL parser instead of a permissive regex.
 
