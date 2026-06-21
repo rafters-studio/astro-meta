@@ -194,6 +194,21 @@ describe("astroMeta integration", () => {
     expect(existsSync(join(distDir, "_headers"))).toBe(false);
   });
 
+  it("build:done skips _headers when emit.header is false", async () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      robots: {
+        rules: [{ userAgent: "*", allow: ["/"] }],
+        contentSignals: { policy: { aiTrain: "no" }, emit: { header: false } },
+      },
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )(fakeBuildDoneArgs(distDir) as unknown as Record<string, unknown>);
+    expect(existsSync(join(distDir, "_headers"))).toBe(false);
+  });
+
   it("build:done writes sitemap entries from configured sources", async () => {
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),

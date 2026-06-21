@@ -87,6 +87,11 @@ describe("renderContentSignalsHeadersFile", () => {
   it("returns the empty string when policy is empty", () => {
     expect(renderContentSignalsHeadersFile({})).toBe("");
   });
+
+  it("uses the Content-Usage field name for the content-usage vocabulary", () => {
+    const out = renderContentSignalsHeadersFile({ aiTrain: "no", search: "yes" }, "content-usage");
+    expect(out).toBe("/*\n  Content-Usage: train-ai=n, search=y\n");
+  });
 });
 
 describe("findUnknownAgents", () => {
@@ -161,6 +166,18 @@ describe("renderRobots content-signal directive", () => {
     });
     expect(out).toContain("Content-Usage: train-ai=n, search=y");
     expect(out).not.toContain("Content-Signal:");
+  });
+
+  it("emits no directive, preamble, or synthetic group when the policy renders empty", () => {
+    // content-usage cannot express ai-input, so a policy carrying only aiInput
+    // renders to an empty value; the directive path must treat that as absent.
+    const out = renderRobots({
+      rules: [],
+      contentSignals: { policy: { aiInput: "no" }, vocabulary: "content-usage" },
+    });
+    expect(out).not.toContain("Content-Usage:");
+    expect(out).not.toContain("# NOTICE");
+    expect(out).not.toContain("User-agent:");
   });
 });
 

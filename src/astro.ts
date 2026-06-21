@@ -22,7 +22,7 @@ import type { LlmsTxtSource } from "./llms-txt.js";
 import { buildLlmsTxt } from "./llms-txt.js";
 import type { RobotsConfig } from "./robots.js";
 import { findUnknownAgents, renderContentSignalsHeadersFile, renderRobots } from "./robots.js";
-import type { SitemapSource } from "./sitemap.js";
+import type { SitemapChunkOptions, SitemapSource } from "./sitemap.js";
 import { buildSitemapFiles, collectEntries, renderSitemap } from "./sitemap.js";
 import type { OgModule } from "./og.js";
 import { ogSlugForRoute, renderOg } from "./og.js";
@@ -37,11 +37,7 @@ export interface AstroMetaOptions {
     sources: readonly SitemapSource[];
     /** Legacy alias for maxUrls. */
     chunkSize?: number;
-    /** Max URLs per sitemap file. Default 50,000. */
-    maxUrls?: number;
-    /** Max uncompressed bytes per sitemap file. Default 50MB. */
-    maxBytes?: number;
-  };
+  } & SitemapChunkOptions;
   llmsTxt?: { sources: readonly LlmsTxtSource[]; full?: boolean };
   og?: { modules: readonly OgModule[] };
   audit?: { rules?: readonly AuditRule[]; threshold?: number; failBuild?: boolean };

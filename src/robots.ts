@@ -70,7 +70,9 @@ export interface ContentSignalsConfig {
     /** The Cloudflare Pages `_headers` entry applying the policy site-wide. */
     header?: boolean;
   };
-  /** Prepend the canonical legal preamble comment block. Default true. */
+  /** Prepend the canonical legal preamble comment block when the directive is
+   *  emitted. Default true. Has no effect when the directive is not emitted, as
+   *  a preamble describing absent signals would be misleading. */
   preamble?: boolean;
   /** How hard to enforce the signals with Disallow rules. Default "declarative". */
   enforce?: ContentSignalEnforcement;
@@ -124,7 +126,7 @@ export interface CrawlerInfo {
  * tokens are retained so a consumer migrating an older robots.txt keeps
  * coverage; notes flag advisory-only or superseded tokens.
  */
-export const crawlerMatrix: readonly CrawlerInfo[] = [
+export const crawlerMatrix = [
   { token: "GPTBot", category: "ai-train" },
   { token: "ChatGPT-User", category: "ai-input", note: "user-triggered live fetch" },
   { token: "OAI-SearchBot", category: "ai-input", note: "ChatGPT search index; not training" },
@@ -179,12 +181,13 @@ export const crawlerMatrix: readonly CrawlerInfo[] = [
   },
   { token: "Timpibot", category: "ai-train" },
   { token: "ImagesiftBot", category: "ai-train" },
-];
+] as const satisfies readonly CrawlerInfo[];
 
 /** Flat list of curated crawler tokens, in matrix order. */
 export const aiCrawlers: readonly string[] = crawlerMatrix.map((c) => c.token);
 
-export type AiCrawler = string;
+/** Union of the curated crawler tokens. */
+export type AiCrawler = (typeof crawlerMatrix)[number]["token"];
 
 const KNOWN_AGENTS: ReadonlySet<string> = new Set<string>([...aiCrawlers, "*"]);
 
@@ -411,10 +414,17 @@ export function renderRobots(config: RobotsConfig): string {
   const disallowRules = cs ? computeCrawlerDisallows(cs.policy, enforce, cs.crawlers ?? {}) : [];
   const merged = mergeRules([...config.rules, ...disallowRules]);
 
-  const signalLine =
+  // Render the policy value first and treat an empty result as "no directive",
+  // mirroring the guard in renderContentSignalsHeadersFile. An empty value
+  // arises from an all-unset policy, or a content-usage vocabulary carrying only
+  // aiInput (which that vocabulary cannot express); emitting `Content-Signal: `
+  // with a blank value would be malformed.
+  const signalValue =
     cs !== undefined && (cs.emit?.directive ?? true)
-      ? `${headerName(vocabulary)}: ${renderContentSignalsHeader(cs.policy, vocabulary)}`
-      : undefined;
+      ? renderContentSignalsHeader(cs.policy, vocabulary)
+      : "";
+  const signalLine =
+    signalValue.length > 0 ? `${headerName(vocabulary)}: ${signalValue}` : undefined;
   const emitPreamble = signalLine !== undefined && (cs?.preamble ?? true);
 
   // The content-signal directive lives in the wildcard group. Synthesize a

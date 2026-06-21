@@ -4,6 +4,7 @@ import {
   collectEntries,
   renderSitemap,
   renderSitemapIndex,
+  SITEMAP_BYTE_LIMIT,
   SITEMAP_URL_LIMIT,
 } from "../src/sitemap.js";
 import type { SitemapEntry, SitemapSource } from "../src/sitemap.js";
@@ -189,6 +190,10 @@ describe("buildSitemapFiles", () => {
 
   it("exposes the sitemaps.org URL limit", () => {
     expect(SITEMAP_URL_LIMIT).toBe(50_000);
+  });
+
+  it("exposes the sitemaps.org byte limit", () => {
+    expect(SITEMAP_BYTE_LIMIT).toBe(52_428_800);
   });
 
   it("accepts an options object with maxUrls", () => {
