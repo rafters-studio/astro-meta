@@ -6,6 +6,7 @@
 
 import type { MetaContext } from "./index.js";
 import { resolveSourceUrl } from "./internal/source-url.js";
+import { sourceCollectError } from "./internal/source-error.js";
 
 export type ChangeFrequency =
   | "always"
@@ -109,13 +110,25 @@ export interface CollectOptions {
 }
 
 /**
- * Run every configured source, validate per-entry, dedup by URL (last write
- * wins, warn on collision), sort by URL for determinism. Throws on non-
- * absolute URLs. Clamps out-of-range priority with a warning.
+ * Run every configured source, resolve each entry URL against site.url, dedup
+ * by the RESOLVED URL (last write wins, warn on collision), sort by URL for
+ * determinism. Clamps out-of-range priority with a warning.
+ *
+ * Two distinct failure points, deliberately reported differently: a source
+ * whose `collect()` throws is a source failure, upgraded by
+ * `sourceCollectError` when it is the astro:content case; an entry whose URL
+ * cannot be resolved is a data failure, named against the source that produced
+ * it so a consumer with a dozen sources knows which one to look at.
  */
 export async function collectEntries(opts: CollectOptions): Promise<SitemapEntry[]> {
   const collected = await Promise.all(
-    opts.sources.map(async (source) => ({ source, entries: await source.collect(opts.ctx) })),
+    opts.sources.map(async (source) => {
+      try {
+        return { source, entries: await source.collect(opts.ctx) };
+      } catch (cause) {
+        throw sourceCollectError("sitemap", source.key, cause);
+      }
+    }),
   );
   const seen = new Map<string, SitemapEntry>();
   for (const { source, entries } of collected) {
