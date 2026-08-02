@@ -38,7 +38,11 @@ export interface AstroMetaOptions {
     /** Legacy alias for maxUrls. */
     chunkSize?: number;
   } & SitemapChunkOptions;
-  llmsTxt?: { sources: readonly LlmsTxtSource[]; full?: boolean };
+  llmsTxt?: {
+    sources: readonly LlmsTxtSource[];
+    full?: boolean;
+    onNonMarkdownBody?: "warn" | "error" | "drop";
+  };
   og?: { modules: readonly OgModule[] };
   audit?: { rules?: readonly AuditRule[]; threshold?: number; failBuild?: boolean };
 }
@@ -111,7 +115,7 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         const robotsBody = renderRobotsForOpts(opts);
         const [sitemapFiles, llmsFiles] = await Promise.all([
           buildSitemapForOpts(opts, buildLogger),
-          buildLlmsTxtForOpts(opts),
+          buildLlmsTxtForOpts(opts, buildLogger),
         ]);
         const headersBody = renderHeadersFile(opts);
 
@@ -206,6 +210,7 @@ function renderHeadersFile(opts: AstroMetaOptions): string {
 
 async function buildLlmsTxtForOpts(
   opts: AstroMetaOptions,
+  logger: MinimalLogger,
 ): Promise<{ path: string; content: string }[]> {
   if (!opts.llmsTxt || opts.llmsTxt.sources.length === 0) return [];
   const wildcard = opts.robots?.rules.find((r) => r.userAgent === "*");
@@ -215,9 +220,21 @@ async function buildLlmsTxtForOpts(
       disallow: wildcard?.disallow,
       header: { title: opts.site.name, description: opts.site.description },
       full: opts.llmsTxt.full,
+      onNonMarkdownBody: opts.llmsTxt.onNonMarkdownBody,
     },
     { site: opts.site },
   );
+  // "error" already threw inside buildLlmsTxt. What reaches here is warn or
+  // drop, and both are worth one line per entry so the failing page is
+  // findable without a second build.
+  const dropped = opts.llmsTxt.onNonMarkdownBody === "drop";
+  for (const entry of result.nonMarkdownBodies) {
+    logger.warn(
+      `llms-txt: ${entry.title} (${entry.url}) body is not markdown (${entry.reason}); ${
+        dropped ? "body omitted from llms-full.txt" : "emitting anyway"
+      }. Feed rendered content rather than page source.`,
+    );
+  }
   const files: { path: string; content: string }[] = [{ path: "llms.txt", content: result.index }];
   if (result.full !== undefined) {
     files.push({ path: "llms-full.txt", content: result.full });
