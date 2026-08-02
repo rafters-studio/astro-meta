@@ -5,7 +5,7 @@
 // per-file URL cap defined by sitemaps.org (50,000).
 
 import type { MetaContext } from "./index.js";
-import { isAbsoluteUrl } from "./internal/render-site-meta.js";
+import { resolveSourceUrl } from "./internal/source-url.js";
 
 export type ChangeFrequency =
   | "always"
@@ -120,20 +120,24 @@ export async function collectEntries(opts: CollectOptions): Promise<SitemapEntry
   const seen = new Map<string, SitemapEntry>();
   for (const { source, entries } of collected) {
     for (const entry of entries) {
-      if (!isAbsoluteUrl(entry.url)) {
+      let url: string;
+      try {
+        url = resolveSourceUrl(entry.url, opts.ctx.site.url, "sitemap");
+      } catch (cause) {
+        // Name the source that produced the bad entry. Without it a consumer
+        // with a dozen sources has no way back to the one at fault.
         throw new Error(
-          `@rafters/astro-meta/sitemap: entry.url must be absolute (got "${entry.url}" from source [${source.key.join(", ")}])`,
+          `@rafters/astro-meta/sitemap: invalid entry.url from source [${source.key.join(", ")}]`,
+          { cause },
         );
       }
       if (entry.priority !== undefined && (entry.priority < 0 || entry.priority > 1)) {
-        opts.logger?.warn(
-          `entry priority ${entry.priority} for ${entry.url} is outside [0, 1]; clamped`,
-        );
+        opts.logger?.warn(`entry priority ${entry.priority} for ${url} is outside [0, 1]; clamped`);
       }
-      if (seen.has(entry.url)) {
-        opts.logger?.warn(`duplicate sitemap entry ${entry.url}; last write wins`);
+      if (seen.has(url)) {
+        opts.logger?.warn(`duplicate sitemap entry ${url}; last write wins`);
       }
-      seen.set(entry.url, entry);
+      seen.set(url, { ...entry, url });
     }
   }
   return [...seen.values()].toSorted((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
