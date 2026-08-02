@@ -6,6 +6,7 @@
 
 import type { MetaContext } from "./index.js";
 import { isAbsoluteUrl } from "./internal/render-site-meta.js";
+import { sourceCollectError } from "./internal/source-error.js";
 
 export type ChangeFrequency =
   | "always"
@@ -115,7 +116,13 @@ export interface CollectOptions {
  */
 export async function collectEntries(opts: CollectOptions): Promise<SitemapEntry[]> {
   const collected = await Promise.all(
-    opts.sources.map(async (source) => ({ source, entries: await source.collect(opts.ctx) })),
+    opts.sources.map(async (source) => {
+      try {
+        return { source, entries: await source.collect(opts.ctx) };
+      } catch (cause) {
+        throw sourceCollectError("sitemap", source.key, cause);
+      }
+    }),
   );
   const seen = new Map<string, SitemapEntry>();
   for (const { source, entries } of collected) {

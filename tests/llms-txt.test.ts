@@ -266,3 +266,38 @@ describe("buildLlmsTxt markdown-body contract", () => {
     expect(result.nonMarkdownBodies).toEqual([]);
   });
 });
+
+describe("source collect() failures", () => {
+  // Measured across all four build hooks in tests/examples/app: config:setup,
+  // build:setup, build:generated, and build:done fail identically. The phase is
+  // not the variable, the module graph is (#43).
+  it.each([
+    "Only URLs with a scheme in: file, data, and node are supported by the default ESM loader. Received protocol 'astro:'",
+    "Vite module runner has been closed.",
+  ])("rewrites the astro:content failure (%#) into actionable guidance", async (message) => {
+    const source: LlmsTxtSource = {
+      key: ["docs"],
+      collect: () => {
+        throw new Error(message);
+      },
+    };
+    await expect(buildLlmsTxt({ sources: [source] }, ctx)).rejects.toThrow(
+      /astro:content is not reachable from a source module/,
+    );
+    await expect(buildLlmsTxt({ sources: [source] }, ctx)).rejects.toThrow(/\[docs\]/);
+  });
+
+  it("passes an unrelated source failure through, preserving its message", async () => {
+    const source: LlmsTxtSource = {
+      key: ["docs"],
+      collect: () => {
+        throw new Error("ENOENT: no such file or directory");
+      },
+    };
+    await expect(buildLlmsTxt({ sources: [source] }, ctx)).rejects.toThrow(/\[docs\]/);
+    const err = await buildLlmsTxt({ sources: [source] }, ctx).catch((e: unknown) => e);
+    expect((err as Error).cause).toBeInstanceOf(Error);
+    expect(((err as Error).cause as Error).message).toMatch(/ENOENT/);
+    expect((err as Error).message).not.toMatch(/astro:content/);
+  });
+});
