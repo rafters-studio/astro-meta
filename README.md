@@ -183,7 +183,7 @@ Five file-emission surfaces, three head-composition components, two type/helper 
 | Components | `@rafters/astro-meta/components/*` | `SiteMeta.astro` (canonical, OG core, Twitter card, configurable `og:type` website/article with `article:*` timestamps, social `image`), `SchemaScript.astro` (JSON-LD), `OgImage.astro`; drop into a layout `<head>` |
 | Schema     | `@rafters/astro-meta/schema`       | JSON-LD primitives (`renderJsonLd`, `mergeGraph`, `collectSchemas`) and typed builders (`softwareApplication`, `article`, `breadcrumbList`) plus `SchemaScript`; no HTML mutation                                     |
 | Entities   | `@rafters/astro-meta/entities`     | Organization + Person with sameAs, knowsAbout, founder, employee; validates sameAs URLs (https required, must parse); enforces @id uniqueness; warns on employee/worksFor reciprocity mismatches                      |
-| llms.txt   | `@rafters/astro-meta/llms-txt`     | `/llms.txt` and `/llms-full.txt`; auto-mirrors robots wildcard disallow so the two artifacts cannot drift                                                                                                             |
+| llms.txt   | `@rafters/astro-meta/llms-txt`     | `/llms.txt` and `/llms-full.txt`; auto-mirrors robots wildcard disallow so the two artifacts cannot drift; sniffs entry bodies for component tags and module syntax via `onNonMarkdownBody`                           |
 | Robots     | `@rafters/astro-meta/robots`       | `robots.txt` with curated, categorized AI-crawler matrix, the singular `Content-Signal:` directive plus Cloudflare `_headers`, a configurable `enforce` policy, and a vocabulary switch                               |
 | Sitemap    | `@rafters/astro-meta/sitemap`      | `sitemap.xml` + `sitemap-index` chunked at the 50,000-URL and 50MB protocol caps, with hreflang alternates                                                                                                            |
 | OG         | `@rafters/astro-meta/og`           | Per-route PNG via satori + @resvg/resvg-js (optional peers, dynamic-imported); 1200x630 default                                                                                                                       |
@@ -209,6 +209,23 @@ Module keys are arrays. The build pipeline composes by prefix:
 ```
 
 The same convention governs sitemap segmentation, llms.txt sections, and audit scoping. It matches the `@rafters/astro-data` key convention so the two packages compose cleanly inside the same site.
+
+### The llms-full.txt markdown contract.
+
+`LlmsTxtEntry.body` is documented as markdown, and `llms-full.txt` is the artifact crawlers actually read. A consumer that feeds page source instead of rendered content publishes component tags: an entry body of `<SiteHeader /> <VoiceHero /> <MrsBlock />` is zero content shipped to every crawler, and nothing in the build says so.
+
+`llmsTxt.onNonMarkdownBody` decides what happens when a body fails the sniff:
+
+```ts
+llmsTxt: {
+  sources: [docsSource],
+  onNonMarkdownBody: "warn", // "warn" (default) | "error" | "drop"
+}
+```
+
+`warn` logs one line per failing entry, naming the title and absolute URL, and emits the body anyway. `error` throws at `build:done` listing every failing entry, not just the first, so one build round-trip shows the full damage. `drop` omits the body from `llms-full.txt` while the entry stays in the `llms.txt` index.
+
+The sniff is a heuristic, not a parser. It flags component-cased tags at the start of a line (`<SiteHeader`) and top-level `import`/`export` statements. Inline HTML like `<img>` and `<div>` is legal markdown and passes. Fenced code blocks and inline code spans are masked before scanning, because JSX inside a fence is documentation rather than a defect, and an unterminated fence masks to the end of the body: the sniff prefers a miss to a false flag. Bodies are scanned to a 64,000-character bound.
 
 ### Content signals.
 

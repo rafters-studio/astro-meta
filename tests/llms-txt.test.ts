@@ -145,3 +145,124 @@ describe("buildLlmsTxt", () => {
     expect(index).not.toMatch(/^## /m);
   });
 });
+
+describe("buildLlmsTxt markdown-body contract", () => {
+  // The sniff exists to catch component tags reaching crawlers. Its dangerous
+  // failure is the opposite direction: flagging documentation that legitimately
+  // shows JSX. This case is first because it constrains the implementation more
+  // than any of the detection cases do.
+  it("passes legitimate markdown containing fenced JSX, inline HTML, and tables", async () => {
+    const body = [
+      "Mount the component in your layout:",
+      "",
+      "```jsx",
+      "<SiteHeader />",
+      "<VoiceHero title='hi' />",
+      "```",
+      "",
+      "~~~astro",
+      "<MegaFooter current='legion' />",
+      "~~~",
+      "",
+      "Inline `<Container />` is fine too, as is <img src='/a.png' alt='a'> and",
+      "<div class='note'>raw HTML</div>, which markdown allows.",
+      "",
+      "| Component | Purpose |",
+      "| --------- | ------- |",
+      "| `<Grid />` | layout  |",
+    ].join("\n");
+    const source: LlmsTxtSource = {
+      key: ["docs"],
+      collect: () => [{ title: "Usage", url: "/docs/usage", body }],
+    };
+    const result = await buildLlmsTxt({ sources: [source], onNonMarkdownBody: "error" }, ctx);
+    expect(result.nonMarkdownBodies).toEqual([]);
+    expect(result.full).toContain("<SiteHeader />");
+  });
+
+  it("flags a body that is only component tags", async () => {
+    const source: LlmsTxtSource = {
+      key: ["pages"],
+      collect: () => [
+        {
+          title: "Home",
+          url: "/",
+          body: "<SiteHeader />\n<VoiceHero />\n<MrsBlock />\n<NarrativeSections />",
+        },
+      ],
+    };
+    const result = await buildLlmsTxt({ sources: [source] }, ctx);
+    expect(result.nonMarkdownBodies).toHaveLength(1);
+    expect(result.nonMarkdownBodies[0]?.title).toBe("Home");
+    expect(result.nonMarkdownBodies[0]?.url).toBe("https://example.com/");
+    expect(result.nonMarkdownBodies[0]?.reason).toMatch(/SiteHeader/);
+  });
+
+  it("flags top-level import and export statements", async () => {
+    const source: LlmsTxtSource = {
+      key: ["pages"],
+      collect: () => [
+        { title: "Imported", url: "/i", body: "import Foo from './foo.astro';\n\nSome prose." },
+        { title: "Exported", url: "/e", body: "export const x = 1;\n\nMore prose." },
+      ],
+    };
+    const result = await buildLlmsTxt({ sources: [source] }, ctx);
+    expect(result.nonMarkdownBodies).toHaveLength(2);
+  });
+
+  it("warns by default: the body still ships", async () => {
+    const source: LlmsTxtSource = {
+      key: ["pages"],
+      collect: () => [{ title: "Home", url: "/", body: "<SiteHeader />" }],
+    };
+    const result = await buildLlmsTxt({ sources: [source] }, ctx);
+    expect(result.nonMarkdownBodies).toHaveLength(1);
+    expect(result.full).toContain("<SiteHeader />");
+  });
+
+  it("drop mode omits the body but keeps the entry in the index", async () => {
+    const source: LlmsTxtSource = {
+      key: ["pages"],
+      collect: () => [
+        { title: "Home", url: "/", body: "<SiteHeader />" },
+        { title: "About", url: "/about", body: "Real prose about us." },
+      ],
+    };
+    const result = await buildLlmsTxt({ sources: [source], onNonMarkdownBody: "drop" }, ctx);
+    expect(result.index).toContain("- [Home](https://example.com/)");
+    expect(result.full).not.toContain("<SiteHeader />");
+    expect(result.full).toContain("Real prose about us.");
+  });
+
+  it("error mode names every failing entry, not just the first", async () => {
+    const source: LlmsTxtSource = {
+      key: ["pages"],
+      collect: () => [
+        { title: "Home", url: "/", body: "<SiteHeader />" },
+        { title: "Docs", url: "/docs", body: "<DocsShell />" },
+      ],
+    };
+    await expect(
+      buildLlmsTxt({ sources: [source], onNonMarkdownBody: "error" }, ctx),
+    ).rejects.toThrow(/Home[\s\S]*Docs/);
+  });
+
+  it("does not throw on a body far past the scan bound", async () => {
+    const body = `${"prose line\n".repeat(50_000)}<SiteHeader />`;
+    const source: LlmsTxtSource = {
+      key: ["pages"],
+      collect: () => [{ title: "Huge", url: "/huge", body }],
+    };
+    const result = await buildLlmsTxt({ sources: [source] }, ctx);
+    expect(result.nonMarkdownBodies).toEqual([]);
+  });
+
+  it("leaves an unterminated code fence masked to the end rather than flagging", async () => {
+    const source: LlmsTxtSource = {
+      key: ["docs"],
+      collect: () => [{ title: "Unterminated", url: "/u", body: "```jsx\n<SiteHeader />" }],
+    };
+    const result = await buildLlmsTxt({ sources: [source] }, ctx);
+    expect(result.nonMarkdownBodies).toEqual([]);
+  });
+});
