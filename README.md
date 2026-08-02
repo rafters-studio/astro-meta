@@ -1,8 +1,8 @@
 # @rafters/astro-meta
 
-Build-time artifacts for crawlers and LLMs. Astro 6 edition.
+Build-time artifacts for crawlers and LLMs. Astro 6 and 7.
 
-Astro 6 ships pages, server islands, and Actions. It does not ship a coherent emission contract for the artifacts every site deploying in 2026 is expected to produce: JSON-LD, `llms.txt`, `robots.txt` with a maintained AI-crawler matrix, sitemap with hreflang, per-page OG images, and a build-time check that the resulting HTML is actually legible to a crawler. This package is that contract.
+Astro ships pages, server islands, and Actions. It does not ship a coherent emission contract for the artifacts every site deploying in 2026 is expected to produce: JSON-LD, `llms.txt`, `robots.txt` with a maintained AI-crawler matrix, sitemap with hreflang, per-page OG images, and a build-time check that the resulting HTML is actually legible to a crawler. This package is that contract.
 
 Not a plugin bundle. One subpath per artifact, opt into what the site actually needs.
 
@@ -10,7 +10,7 @@ The integration at `/astro` wires them together.
 
 ## Status.
 
-`0.3.0` is live on npm. Designed against Astro 6.1.9+. Lives inside Astro's own lifecycle, not next to it.
+`0.3.0` is live on npm. Supports Astro 6 and 7, both exercised in CI by building the example app against each major and asserting the emitted artifacts, not merely that the build exits zero. Lives inside Astro's own lifecycle, not next to it.
 
 The integration runs at `astro:config:setup` (validation, warnings, `injectTypes` for the virtual module) and `astro:build:done` (file emissions). No request-time middleware. SSG and SSR consumers behave identically.
 

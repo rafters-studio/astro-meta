@@ -11,20 +11,28 @@ const escapeAttr = (v: string): string =>
  * Per-page overrides for the site-level head. Every field is optional; an empty
  * object reproduces the site-default behavior (og:type website, no image, title
  * and description from the SiteIdentity).
+ *
+ * Each field is `?: T | undefined` rather than `?: T` on purpose. Astro's own
+ * strict tsconfig turns on exactOptionalPropertyTypes, under which `title?:
+ * string` accepts an ABSENT property but rejects an explicitly undefined one.
+ * A layout forwarding its own optional prop, which is the pattern this
+ * package's README documents, passes `string | undefined` and would not
+ * compile. Accepting undefined costs nothing here because every read site
+ * already falls back.
  */
 export interface SiteMetaOptions {
   /** Per-page title; falls back to site.name. */
-  title?: string;
+  title?: string | undefined;
   /** Per-page description; falls back to site.description. */
-  description?: string;
+  description?: string | undefined;
   /** Open Graph object type. Default "website"; "article" enables article:* tags. */
-  ogType?: "website" | "article";
+  ogType?: "website" | "article" | undefined;
   /** ISO 8601 publish time; emitted as article:published_time when ogType is "article". */
-  publishedTime?: string;
+  publishedTime?: string | undefined;
   /** ISO 8601 modified time; emitted as article:modified_time when ogType is "article". */
-  modifiedTime?: string;
+  modifiedTime?: string | undefined;
   /** Social share image; absolute, or site-relative and resolved against site.url. */
-  image?: string;
+  image?: string | undefined;
 }
 
 /** Resolve a possibly site-relative image to an absolute URL against the site origin. */

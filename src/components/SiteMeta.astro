@@ -16,9 +16,9 @@ import { site as defaultSite } from "virtual:astro-meta/site";
 
 export interface Props extends SiteMetaOptions {
   /** Override the integration-configured SiteIdentity. */
-  site?: SiteIdentity;
+  site?: SiteIdentity | undefined;
   /** Route for canonical and og:url. Defaults to Astro.url.pathname. */
-  route?: string;
+  route?: string | undefined;
 }
 
 const {
