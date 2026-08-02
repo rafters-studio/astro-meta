@@ -6,7 +6,7 @@
 // llms-txt disallow so the two artifacts cannot drift.
 
 import type { MetaContext } from "./index.js";
-import { isAbsoluteUrl } from "./internal/render-site-meta.js";
+import { resolveSourceUrl } from "./internal/source-url.js";
 
 export interface LlmsTxtEntry {
   title: string;
@@ -111,12 +111,7 @@ interface ResolvedEntry extends LlmsTxtEntry {
 }
 
 function resolveEntry(entry: LlmsTxtEntry, siteUrl: string): ResolvedEntry {
-  if (entry.url.length === 0) {
-    throw new Error(`@rafters/astro-meta/llms-txt: entry.url must be non-empty`);
-  }
-  const absoluteUrl = isAbsoluteUrl(entry.url)
-    ? entry.url
-    : `${siteUrl}${entry.url.startsWith("/") ? entry.url : `/${entry.url}`}`;
+  const absoluteUrl = resolveSourceUrl(entry.url, siteUrl, "llms-txt");
   const pathname = new URL(absoluteUrl).pathname;
   return { ...entry, absoluteUrl, pathname };
 }

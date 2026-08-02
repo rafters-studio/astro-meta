@@ -210,6 +210,10 @@ Module keys are arrays. The build pipeline composes by prefix:
 
 The same convention governs sitemap segmentation, llms.txt sections, and audit scoping. It matches the `@rafters/astro-data` key convention so the two packages compose cleanly inside the same site.
 
+### Source entry URLs.
+
+`SitemapSource` and `LlmsTxtSource` accept the same URL shapes, so one map function feeds both. An absolute URL passes through untouched, including one pointing at an external host; a site-relative path resolves against `site.url`, with a leading slash supplied if missing. Sitemap deduplication happens after resolution, so `/a` and `https://your-site/a` collapse to one entry rather than two.
+
 ### The llms-full.txt markdown contract.
 
 `LlmsTxtEntry.body` is documented as markdown, and `llms-full.txt` is the artifact crawlers actually read. A consumer that feeds page source instead of rendered content publishes component tags: an entry body of `<SiteHeader /> <VoiceHero /> <MrsBlock />` is zero content shipped to every crawler, and nothing in the build says so.

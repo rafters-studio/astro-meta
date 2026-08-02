@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { buildLlmsTxt } from "../src/llms-txt.js";
 import {
   buildSitemapFiles,
   collectEntries,
@@ -135,12 +136,51 @@ describe("collectEntries", () => {
     expect(warnings.some((m) => m.includes("duplicate"))).toBe(true);
   });
 
-  it("throws when an entry url is not absolute", async () => {
+  // Inverted deliberately in #44. This previously asserted the throw that made
+  // sitemap and llms-txt disagree: the same map function worked for one source
+  // type and failed for the other. Relative now resolves, matching llms-txt.
+  it("resolves a site-relative entry url against site.url", async () => {
     const source: SitemapSource = {
-      key: ["bad"],
-      collect: () => [{ url: "/relative" }],
+      key: ["rel"],
+      collect: () => [{ url: "/relative" }, { url: "no-slash" }],
     };
-    await expect(collectEntries({ sources: [source], ctx })).rejects.toThrow(/absolute/);
+    const result = await collectEntries({ sources: [source], ctx });
+    expect(result.map((e) => e.url)).toEqual([
+      "https://example.com/no-slash",
+      "https://example.com/relative",
+    ]);
+  });
+
+  it("leaves absolute entry urls untouched, including external hosts", async () => {
+    const source: SitemapSource = {
+      key: ["abs"],
+      collect: () => [{ url: "https://external.example/x" }],
+    };
+    const result = await collectEntries({ sources: [source], ctx });
+    expect(result[0]?.url).toBe("https://external.example/x");
+  });
+
+  it("dedups a relative entry against its own absolute form", async () => {
+    const warnings: string[] = [];
+    const source: SitemapSource = {
+      key: ["dup"],
+      collect: () => [{ url: "/same" }, { url: "https://example.com/same" }],
+    };
+    const result = await collectEntries({
+      sources: [source],
+      ctx,
+      logger: { warn: (m) => warnings.push(m) },
+    });
+    expect(result).toHaveLength(1);
+    expect(warnings.some((m) => m.includes("duplicate"))).toBe(true);
+  });
+
+  it("throws on an empty entry url, naming the source", async () => {
+    const source: SitemapSource = {
+      key: ["bad", "nested"],
+      collect: () => [{ url: "" }],
+    };
+    await expect(collectEntries({ sources: [source], ctx })).rejects.toThrow(/\[bad, nested\]/);
   });
 
   it("warns when priority is outside [0, 1]", async () => {
@@ -230,4 +270,28 @@ describe("buildSitemapFiles", () => {
       /> 0/,
     );
   });
+});
+
+// The regression guard for #44 itself: the two source APIs present the same
+// authoring surface, so the same entry list must resolve the same way through
+// both. Testing each side's resolution separately would let them drift again.
+describe("source URL parity between sitemap and llms-txt", () => {
+  const ctx = { site: { url: "https://example.com", name: "Example" } };
+
+  it.each(["/posts/foo/", "posts/foo/", "https://example.com/posts/foo/"])(
+    "resolves %j identically in both surfaces",
+    async (url) => {
+      const sitemapEntries = await collectEntries({
+        sources: [{ key: ["posts"], collect: () => [{ url }] }],
+        ctx,
+      });
+      const { index } = await buildLlmsTxt(
+        { sources: [{ key: ["posts"], collect: () => [{ title: "Foo", url }] }] },
+        ctx,
+      );
+      const resolved = sitemapEntries[0]?.url;
+      expect(resolved).toBe("https://example.com/posts/foo/");
+      expect(index).toContain(`(${resolved})`);
+    },
+  );
 });
