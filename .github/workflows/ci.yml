@@ -6,7 +6,11 @@ on:
     branches: [main]
 
 jobs:
-  ci:
+  # Typecheck, lint, format, and the unit suite. Run ONCE, not per Astro
+  # version: these tests exercise pure functions that never import astro, so
+  # they pass identically on every major and a matrix over them would buy
+  # nothing but minutes.
+  unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,3 +24,58 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm test
+
+  # The discriminating check. What breaks across Astro majors is the
+  # integration's contact with the hook API, and no unit test sees that,
+  # because they hand the hooks fake arguments. This builds the real example
+  # app against each supported major and asserts the emitted artifacts have
+  # the right CONTENT: a source pipeline that silently stopped running still
+  # writes a well-formed, empty sitemap.
+  compat:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      # One major failing must not cancel the others; knowing 6 breaks while 7
+      # passes is the whole point.
+      fail-fast: false
+      matrix:
+        astro: ["6", "7"]
+        include:
+          # Floating leg. Today this resolves to the same 7 as the pinned leg;
+          # the day Astro 8 ships as latest it starts exercising it, which is
+          # the early warning. Non-blocking, because a break here is upstream's
+          # release landing, not this PR's fault.
+          #
+          # There is no usable prerelease tag to point at instead: astro has no
+          # `next`, `beta` is a stale 7.0.0-beta.6, and `rc` is 3.0.0-rc.11.
+          # When 8 reaches a real prerelease tag, add it as its own leg and
+          # widen peerDependencies once it is stable.
+          - astro: "latest"
+            experimental: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.12"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      # dist/ is gitignored, and the fixture resolves @rafters/astro-meta
+      # through the exports map into dist. Without this the fixture cannot
+      # resolve the package at all.
+      - run: pnpm build
+      # Swapping the version desyncs the lockfile, so --frozen-lockfile cannot
+      # be used past this point. pnpm add performs its own install.
+      - name: Pin the fixture to this leg's Astro major
+        env:
+          ASTRO_VERSION: ${{ matrix.astro }}
+        run: pnpm --filter @rafters/astro-meta-example-app add -D "astro@$ASTRO_VERSION"
+      - name: Report resolved Astro version
+        run: pnpm --filter @rafters/astro-meta-example-app exec astro --version
+      # astro check covers the type-level surface the artifact assertions
+      # cannot see, notably the injectTypes virtual module.
+      - run: pnpm --filter @rafters/astro-meta-example-app run typecheck
+      - name: Build fixture and verify artifact content
+        env:
+          ASTRO_VERSION: ${{ matrix.astro }}
+        run: pnpm --filter @rafters/astro-meta-example-app run verify
