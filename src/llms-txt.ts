@@ -7,6 +7,7 @@
 
 import type { MetaContext } from "./index.js";
 import { resolveSourceUrl } from "./internal/source-url.js";
+import { sourceCollectError } from "./internal/source-error.js";
 
 export interface LlmsTxtEntry {
   title: string;
@@ -152,7 +153,13 @@ export async function buildLlmsTxt(
   ctx: MetaContext,
 ): Promise<{ index: string; full?: string; nonMarkdownBodies: NonMarkdownBody[] }> {
   const collected = await Promise.all(
-    opts.sources.map(async (source) => ({ source, entries: await source.collect(ctx) })),
+    opts.sources.map(async (source) => {
+      try {
+        return { source, entries: await source.collect(ctx) };
+      } catch (cause) {
+        throw sourceCollectError("llms-txt", source.key, cause);
+      }
+    }),
   );
   const resolved: ResolvedEntry[] = [];
   for (const { entries } of collected) {

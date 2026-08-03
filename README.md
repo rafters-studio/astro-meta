@@ -154,22 +154,34 @@ Declare an llms.txt source:
 
 ```ts
 // src/meta/docs-llms.ts
-import { getCollection } from "astro:content";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import matter from "gray-matter";
 import type { LlmsTxtSource } from "@rafters/astro-meta/llms-txt";
 
-export const key = ["docs"] as const;
+const DOCS_DIR = "src/content/docs";
 
-export async function collect() {
-  const entries = await getCollection("docs");
-  return entries.map((entry) => ({
-    title: entry.data.title,
-    url: `/docs/${entry.slug}`,
-    summary: entry.data.description,
-    body: entry.body,
-    section: "Docs",
-  }));
-}
+export const docsLlms: LlmsTxtSource = {
+  key: ["docs"],
+  async collect() {
+    const files = (await readdir(DOCS_DIR)).filter((f) => f.endsWith(".md"));
+    return Promise.all(
+      files.map(async (file) => {
+        const { data, content } = matter(await readFile(join(DOCS_DIR, file), "utf8"));
+        return {
+          title: data.title,
+          url: `/docs/${file.replace(/\.md$/, "")}/`,
+          summary: data.description,
+          body: content,
+          section: "Docs",
+        };
+      }),
+    );
+  },
+};
 ```
+
+**Sources cannot use `astro:content`.** A source module is imported by `astro.config.*`, which Node's ESM loader evaluates outside Vite's module graph, so the `astro:content` virtual module does not resolve there. This is not a hook-timing problem and moving collection earlier does not help: `config:setup`, `build:setup`, `build:generated`, and `build:done` all fail identically with `Received protocol 'astro:'`. Read the content directory from disk instead, as above. If a source does reach for `astro:content`, the resulting error is caught and rewritten to say so rather than surfacing Node's raw loader message.
 
 ## Concepts.
 
