@@ -1,2 +1,19 @@
 packages:
   - tests/examples/*
+configDependencies:
+  "@rafters/toolchain": 0.1.2
+# Kept over the toolchain's typescript ^7.0.2: astro check in the example app refuses TypeScript 7,
+# which does not ship the programmatic API @astrojs/language-server drives.
+catalog:
+  "@rafters/toolchain": ^0.1.2
+  typescript: ^5.9.3
+  # Kept over the toolchain's @types/node ^24: the package supports Node >=22 (engines), so tsc must
+  # reject an API Node 22 lacks.
+  "@types/node": ^22.10.0
+minimumReleaseAgeExclude:
+  - "@rafters/toolchain"
+# pnpm 10 skipped these build scripts by default; pnpm 12 fails on an unlisted one.
+allowBuilds:
+  esbuild: false
+  lefthook: false
+  sharp: false
