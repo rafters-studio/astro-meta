@@ -86,7 +86,7 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
   },
   "devDependencies": {
-    "@rafters/toolchain": "0.1.1",
+    "@rafters/toolchain": "catalog:",
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "catalog:",
     "@vitest/browser": "^4.1.0",

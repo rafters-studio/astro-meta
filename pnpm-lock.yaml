@@ -6,8 +6,8 @@ importers:
   .:
     configDependencies:
       '@rafters/toolchain':
-        specifier: 0.1.1
-        version: 0.1.1
+        specifier: 0.1.2
+        version: 0.1.2
     packageManagerDependencies:
       pnpm:
         specifier: 12.9.1
@@ -92,8 +92,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@rafters/toolchain@0.1.1':
-    resolution: {integrity: sha512-+j2FFYwljy5yFxivacywtnI9KQ1FowB7C7Sqv6Rlez0cazD38RhXmbqrmPLu6PWVA/OHQL+6KPBMsv+DC0FgeQ==}
+  '@rafters/toolchain@0.1.2':
+    resolution: {integrity: sha512-BDcx7o21Z8QWCovJ+34QSRWxH2g5BufeyQgqyA6dMrGljxcpHYk5/2E3pPHEOHeYuL9Cu3HGzlFPaI5rLRkEHw==}
 
   pnpm@12.9.1:
     resolution: {integrity: sha512-BrBV//XNINwSeB3hc87TMQzglRvy7GICEaFgRdVETVyTpmMhB2TvKaZTphBFm6A2jw50+E2AxUcjz5Wq57wNbQ==}
@@ -144,7 +144,7 @@ snapshots:
   '@pnpm/exe.win32-x64@12.9.1':
     optional: true
 
-  '@rafters/toolchain@0.1.1': {}
+  '@rafters/toolchain@0.1.2': {}
 
   pnpm@12.9.1:
     optionalDependencies:
@@ -172,6 +172,9 @@ settings:
 
 catalogs:
   default:
+    '@rafters/toolchain':
+      specifier: ^0.1.2
+      version: 0.1.2
     '@types/node':
       specifier: ^22.10.0
       version: 22.20.5
@@ -186,8 +189,8 @@ importers:
   .:
     devDependencies:
       '@rafters/toolchain':
-        specifier: 0.1.1
-        version: 0.1.1
+        specifier: 'catalog:'
+        version: 0.1.2
       '@resvg/resvg-js':
         specifier: ^2.6.2
         version: 2.6.2
@@ -1111,8 +1114,8 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
-  '@rafters/toolchain@0.1.1':
-    resolution: {integrity: sha512-+j2FFYwljy5yFxivacywtnI9KQ1FowB7C7Sqv6Rlez0cazD38RhXmbqrmPLu6PWVA/OHQL+6KPBMsv+DC0FgeQ==}
+  '@rafters/toolchain@0.1.2':
+    resolution: {integrity: sha512-BDcx7o21Z8QWCovJ+34QSRWxH2g5BufeyQgqyA6dMrGljxcpHYk5/2E3pPHEOHeYuL9Cu3HGzlFPaI5rLRkEHw==}
     engines: {node: '>=22.18.0'}
     hasBin: true
 
@@ -3883,7 +3886,7 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@rafters/toolchain@0.1.1':
+  '@rafters/toolchain@0.1.2':
     dependencies:
       '@cucumber/cucumber': 12.9.0
 
@@ -5069,7 +5072,7 @@ snapshots:
   normalize-package-data@8.0.0:
     dependencies:
       hosted-git-info: 9.0.3
-      semver: 7.8.0
+      semver: 7.7.4
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
