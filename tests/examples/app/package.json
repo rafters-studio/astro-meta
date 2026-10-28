@@ -7,7 +7,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "typecheck": "astro check",
+    "typecheck": "astro sync && astro-check",
     "verify": "astro build && node verify-artifacts.mjs"
   },
   "dependencies": {
@@ -16,6 +16,6 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "astro": "^7.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "catalog:"
   }
 }
