@@ -1,9 +1,8 @@
 // Sources for the example app, which is also the version-matrix fixture.
 //
-// These exist so the fixture build exercises something. A config carrying only
-// `site` emits a robots.txt and an EMPTY <urlset>, so a matrix leg asserting
-// those files exist would pass on every Astro version without proving the
-// source pipeline ran at all.
+// These exist so the fixture build exercises the source pipeline. The sitemap
+// lists built pages without any source, so only the per-entry metadata below
+// (changefreq, priority) proves a source actually ran.
 //
 // Deliberately no astro:content here. Source modules are imported by
 // astro.config.*, which Node loads outside Vite's module graph, so the virtual

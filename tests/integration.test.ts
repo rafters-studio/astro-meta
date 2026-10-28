@@ -1,6 +1,6 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { astroMeta } from "../src/astro.js";
 import { defineSite } from "../src/index.js";
@@ -89,7 +89,7 @@ describe("astroMeta integration", () => {
   it("config:setup warns when a surface array is empty", () => {
     const integ = astroMeta({
       site: defineSite({ url: "https://example.com", name: "Example" }),
-      sitemap: { sources: [] },
+      llmsTxt: { sources: [] },
     });
     const warnings: string[] = [];
     const args = {
@@ -105,7 +105,28 @@ describe("astroMeta integration", () => {
     };
     getHook(integ, "astro:config:setup")(args as unknown as Record<string, unknown>);
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("sitemap");
+    expect(warnings[0]).toContain("llmsTxt");
+  });
+
+  it("config:setup does not call empty sitemap sources inactive", () => {
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      sitemap: { sources: [] },
+    });
+    const warnings: string[] = [];
+    const args = {
+      addMiddleware: () => {},
+      updateConfig: () => {},
+      command: "build",
+      logger: {
+        info: () => {},
+        warn: (msg: string) => warnings.push(msg),
+        error: () => {},
+        debug: () => {},
+      },
+    };
+    getHook(integ, "astro:config:setup")(args as unknown as Record<string, unknown>);
+    expect(warnings).toEqual([]);
   });
 
   it("build:done writes robots.txt and sitemap.xml to dist", async () => {
@@ -428,5 +449,118 @@ describe("astroMeta integration", () => {
     getHook(integ, "astro:config:setup")(args as unknown as Record<string, unknown>);
     expect(warnings.some((m) => m.includes("MysteryBot"))).toBe(true);
     expect(warnings.some((m) => m.includes("GPTBot"))).toBe(false);
+  });
+});
+
+const modified = (iso: string): string =>
+  `<meta property="article:modified_time" content="${iso}">`;
+
+const locs = (sitemap: string): string[] =>
+  [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1] ?? "");
+
+describe("sitemap of built pages", () => {
+  let distDir: string;
+
+  beforeEach(() => {
+    distDir = mkdtempSync(join(tmpdir(), "astro-meta-sitemap-"));
+  });
+
+  afterEach(() => {
+    rmSync(distDir, { recursive: true, force: true });
+  });
+
+  function page(rel: string, head = ""): void {
+    mkdirSync(join(distDir, dirname(rel)), { recursive: true });
+    writeFileSync(join(distDir, rel), `<html><head>${head}</head><body></body></html>`);
+  }
+
+  async function build(
+    opts: Partial<Parameters<typeof astroMeta>[0]> = {},
+  ): Promise<{ sitemap: string; warnings: string[] }> {
+    const warnings: string[] = [];
+    const logger = { ...fakeLogger(), warn: (msg: string) => warnings.push(msg) };
+    const integ = astroMeta({
+      site: defineSite({ url: "https://example.com", name: "Example" }),
+      ...opts,
+    });
+    await getHook(
+      integ,
+      "astro:build:done",
+    )({ ...fakeBuildDoneArgs(distDir), logger: { ...logger, fork: () => logger } });
+    return { sitemap: readFileSync(join(distDir, "sitemap.xml"), "utf-8"), warnings };
+  }
+
+  // @criterion-1 @criterion-2: collection and getStaticPaths pages are emitted
+  // as HTML like any other, so the built tree is the whole list.
+  it("lists every built HTML page as an absolute URL and nothing else", async () => {
+    page("index.html");
+    page("about/index.html");
+    page("notes/first-note/index.html");
+    page("agent/a/b/index.html");
+    writeFileSync(join(distDir, "styles.css"), "body{}");
+    const { sitemap } = await build();
+    expect(locs(sitemap)).toEqual([
+      "https://example.com/",
+      "https://example.com/about/",
+      "https://example.com/agent/a/b/",
+      "https://example.com/notes/first-note/",
+    ]);
+    expect(sitemap).not.toContain("[");
+  });
+
+  // @criterion-3
+  it("lets a source override a built page and add a URL the build did not emit", async () => {
+    page("index.html");
+    page("about/index.html", modified("2026-01-01T00:00:00.000Z"));
+    const { sitemap } = await build({
+      sitemap: {
+        sources: [
+          {
+            key: ["extra"],
+            collect: () => [
+              { url: "/about/", lastmod: new Date("2026-05-05T00:00:00.000Z") },
+              { url: "https://example.com/external/" },
+            ],
+          },
+        ],
+      },
+    });
+    expect(locs(sitemap)).toEqual([
+      "https://example.com/",
+      "https://example.com/about/",
+      "https://example.com/external/",
+    ]);
+    expect(sitemap).toContain("<lastmod>2026-05-05T00:00:00.000Z</lastmod>");
+    expect(sitemap).not.toContain("2026-01-01");
+  });
+
+  // @criterion-4
+  it("dates a page by the modified time it declares, never the build time", async () => {
+    page("post/index.html", modified("2025-03-14T00:00:00.000Z"));
+    const { sitemap } = await build();
+    expect(sitemap).toContain("<lastmod>2025-03-14T00:00:00.000Z</lastmod>");
+    const today = new Date().toISOString().slice(0, 10);
+    expect(sitemap).not.toContain(`<lastmod>${today}`);
+  });
+
+  // @criterion-5
+  it("omits lastmod for a page with no known or a malformed change date", async () => {
+    page("undated/index.html");
+    page("garbled/index.html", modified("not a date"));
+    const { sitemap } = await build();
+    expect(locs(sitemap)).toHaveLength(2);
+    expect(sitemap).not.toContain("<lastmod>");
+  });
+
+  // @criterion-6
+  it("reports an empty sitemap, naming sitemap.xml", async () => {
+    const { warnings } = await build();
+    expect(warnings.some((w) => w.includes("sitemap.xml") && w.includes("empty"))).toBe(true);
+  });
+
+  it("does not report a sitemap that has entries", async () => {
+    page("index.html");
+    const { warnings } = await build();
+    expect(warnings.filter((w) => w.includes("sitemap.xml"))).toEqual([]);
   });
 });

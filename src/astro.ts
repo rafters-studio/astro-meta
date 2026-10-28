@@ -22,13 +22,14 @@ import type { LlmsTxtSource } from "./llms-txt.js";
 import { buildLlmsTxt } from "./llms-txt.js";
 import type { RobotsConfig } from "./robots.js";
 import { findUnknownAgents, renderContentSignalsHeadersFile, renderRobots } from "./robots.js";
-import type { SitemapChunkOptions, SitemapSource } from "./sitemap.js";
-import { buildSitemapFiles, collectEntries, renderSitemap } from "./sitemap.js";
+import type { SitemapChunkOptions, SitemapEntry, SitemapSource } from "./sitemap.js";
+import { buildSitemapFiles, collectEntries } from "./sitemap.js";
 import type { OgModule } from "./og.js";
 import { ogSlugForRoute, renderOg } from "./og.js";
 import type { AuditRule } from "./audit.js";
 import { defaultRules, parseRoute, runAudit } from "./audit.js";
 import { isAbsoluteUrl } from "./internal/render-site-meta.js";
+import { resolveSourceUrl } from "./internal/source-url.js";
 
 export interface AstroMetaOptions {
   site: SiteIdentity;
@@ -114,7 +115,7 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
         // written but sitemap.xml missing.
         const robotsBody = renderRobotsForOpts(opts);
         const [sitemapFiles, llmsFiles] = await Promise.all([
-          buildSitemapForOpts(opts, buildLogger),
+          buildSitemapForOpts(opts, outDir, buildLogger),
           buildLlmsTxtForOpts(opts, buildLogger),
         ]);
         const headersBody = renderHeadersFile(opts);
@@ -164,8 +165,8 @@ export function astroMeta(opts: AstroMetaOptions): AstroIntegration {
 type MinimalLogger = Pick<AstroIntegrationLogger, "warn">;
 
 function warnIfEmpty(opts: AstroMetaOptions, logger: MinimalLogger): void {
+  // sitemap is not here: with no sources it still lists the built pages.
   const empty = [
-    ["sitemap", opts.sitemap?.sources],
     ["llmsTxt", opts.llmsTxt?.sources],
     ["og", opts.og?.modules],
   ] as const;
@@ -322,20 +323,56 @@ async function runAuditForOpts(
   return report;
 }
 
+// The date a page declares about itself, as SiteMeta renders it. Read from the
+// built HTML because a collection page maps to no source file, and a fresh CI
+// checkout gives every source file the same mtime.
+const MODIFIED_TIME = /<meta property="article:modified_time" content="([^"]+)">/;
+
+function declaredModifiedTime(html: string): Date | undefined {
+  const value = MODIFIED_TIME.exec(html)?.[1];
+  if (value === undefined) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+async function builtPageEntries(outDir: string, siteUrl: string): Promise<SitemapEntry[]> {
+  const routes = await discoverDistRoutes(outDir);
+  return Promise.all(
+    routes.map(async ({ rel, route }) => {
+      const url = resolveSourceUrl(route, siteUrl, "sitemap");
+      const lastmod = declaredModifiedTime(await readFile(join(outDir, rel), "utf-8"));
+      return lastmod === undefined ? { url } : { url, lastmod };
+    }),
+  );
+}
+
+/**
+ * Every built HTML page, with configured sources layered on top: a source
+ * entry for a built URL replaces it, and any other source entry is added.
+ */
 async function buildSitemapForOpts(
   opts: AstroMetaOptions,
+  outDir: string,
   logger: MinimalLogger,
 ): Promise<{ path: string; content: string }[]> {
-  if (!opts.sitemap || opts.sitemap.sources.length === 0) {
-    return [{ path: "sitemap.xml", content: renderSitemap([]) }];
-  }
-  const entries = await collectEntries({
-    sources: opts.sitemap.sources,
+  const sourced = await collectEntries({
+    sources: opts.sitemap?.sources ?? [],
     ctx: { site: opts.site },
     logger,
   });
+  const byUrl = new Map<string, SitemapEntry>();
+  for (const entry of await builtPageEntries(outDir, opts.site.url)) byUrl.set(entry.url, entry);
+  for (const entry of sourced) byUrl.set(entry.url, entry);
+  const entries = [...byUrl.values()].toSorted((a, b) =>
+    a.url < b.url ? -1 : a.url > b.url ? 1 : 0,
+  );
+  if (entries.length === 0) {
+    logger.warn(
+      "sitemap.xml is empty: the build emitted no HTML pages and no sitemap source returned an entry",
+    );
+  }
   return buildSitemapFiles(entries, opts.site.url, {
-    maxUrls: opts.sitemap.maxUrls ?? opts.sitemap.chunkSize,
-    maxBytes: opts.sitemap.maxBytes,
+    maxUrls: opts.sitemap?.maxUrls ?? opts.sitemap?.chunkSize,
+    maxBytes: opts.sitemap?.maxBytes,
   });
 }
