@@ -1,5 +1,19 @@
 # @rafters/astro-meta
 
+## 0.5.0
+
+The sitemap works with no configuration. Until now it listed only what a site's own `sitemap.sources` returned, and with none configured it wrote an empty `<urlset>` without a warning. So every consumer wrote a collector. Those collectors could not read content collections, because source modules run outside Vite. The shingle sites' collector walked `src/pages` and dated every entry with the checkout time, so all their pages claimed to change on every build.
+
+The headline for anyone upgrading: `sitemap.xml` now lists every HTML page the build emitted, so a site with no sources gets a full sitemap. A site whose sources already list every page sees the same URLs. Its `lastmod` values change only where the sources set them.
+
+- The sitemap is built from the emitted HTML, the same routes the audit and OG steps read. Pages rendered from content collections through `getStaticPaths` are listed, and a bracketed route such as `[...slug]` never appears literally. (#68)
+- `sitemap.sources` layer over the built pages: a source entry for a built URL replaces it, and any other source entry is added. Sources are still how a site lists pages the build does not emit, such as server-rendered routes. (#68)
+- `lastmod` is the date a page declares about itself, its `article:modified_time` as `SiteMeta` renders it when given `modifiedTime`. A page that declares none gets no `lastmod`, and nothing falls back to the build time or a file's mtime, either of which would make every page look new after a fresh checkout. (#68)
+- An empty sitemap is reported. When the build emitted no HTML and no source returned an entry, the build warns "sitemap.xml is empty". The config-time "surface inactive" warning no longer fires for an empty `sitemap.sources`, because the built pages are still listed. (#68)
+- The repo moves onto `@rafters/toolchain` 0.1.4 and pnpm 12. The example app checks with `astro sync && astro-check`, which runs on Astro 7.4 and later with TypeScript 7. Nothing published changes. (#61)
+
+Every emitted page is listed, including `404.html` and redirect stubs. Astro's `base` prefix is not applied to sitemap URLs.
+
 ## 0.4.0
 
 Consumer-reported correctness across three surfaces, plus the first CI that actually exercises Astro. Every item here was found dogfooding the package on the rafters-studio sites rather than by reading the code.
