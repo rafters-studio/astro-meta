@@ -226,6 +226,10 @@ The same convention governs sitemap segmentation, llms.txt sections, and audit s
 
 `SitemapSource` and `LlmsTxtSource` accept the same URL shapes, so one map function feeds both. An absolute URL passes through untouched, including one pointing at an external host; a site-relative path resolves against `site.url`, with a leading slash supplied if missing. Sitemap deduplication happens after resolution, so `/a` and `https://your-site/a` collapse to one entry rather than two.
 
+### What the sitemap lists.
+
+`sitemap.xml` lists every HTML page the build emitted, including pages rendered from content collections, with no source configured. A `SitemapSource` adds to that list: an entry for a built URL replaces the built entry, and any other entry is added. A built page's `lastmod` is the `article:modified_time` it declares, which `SiteMeta` renders from `modifiedTime` when `ogType` is `"article"`; a page that declares none gets no `lastmod`, never the build time. An empty sitemap is reported as a build warning.
+
 ### The llms-full.txt markdown contract.
 
 `LlmsTxtEntry.body` is documented as markdown, and `llms-full.txt` is the artifact crawlers actually read. A consumer that feeds page source instead of rendered content publishes component tags: an entry body of `<SiteHeader /> <VoiceHero /> <MrsBlock />` is zero content shipped to every crawler, and nothing in the build says so.

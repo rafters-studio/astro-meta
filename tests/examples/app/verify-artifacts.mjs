@@ -44,6 +44,25 @@ await check("sitemap.xml", "lost per-entry metadata (changefreq/priority)", (t) 
   t.includes("<changefreq>weekly</changefreq>"),
 );
 
+// Built pages are listed whether or not a source names them. The notes come
+// from a content collection through getStaticPaths, so only the build knows them.
+await check("sitemap.xml", "missing a page rendered from a content collection", (t) =>
+  t.includes("<loc>https://example.com/notes/second-note/</loc>"),
+);
+await check(
+  "sitemap.xml",
+  "lists the dynamic route pattern instead of its pages",
+  (t) => !t.includes("["),
+);
+await check("sitemap.xml", "lost the lastmod the page declares", (t) =>
+  t.includes(
+    "<loc>https://example.com/notes/first-note/</loc>\n    <lastmod>2025-03-14T00:00:00.000Z</lastmod>",
+  ),
+);
+await check("sitemap.xml", "dated a page that declares no change date", (t) =>
+  t.includes("<loc>https://example.com/notes/second-note/</loc>\n  </url>"),
+);
+
 await check("llms.txt", "missing the site header", (t) => t.includes("# astro-meta example"));
 await check("llms.txt", "missing the section grouping", (t) => t.includes("## Pages"));
 await check("llms.txt", "missing a resolved absolute entry URL", (t) =>
