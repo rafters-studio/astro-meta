@@ -14,12 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6.0.10
       - uses: actions/setup-node@v4
         with:
           node-version: "24.12"
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec toolchain drift
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm format:check
@@ -54,7 +55,7 @@ jobs:
             experimental: true
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6.0.10
       - uses: actions/setup-node@v4
         with:
           node-version: "24.12"
