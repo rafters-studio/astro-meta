@@ -510,6 +510,7 @@ describe("sitemap of built pages", () => {
 
   // @criterion-3
   it("lets a source override a built page and add a URL the build did not emit", async () => {
+    page("index.html");
     page("about/index.html", modified("2026-01-01T00:00:00.000Z"));
     const { sitemap } = await build({
       sitemap: {
@@ -524,7 +525,11 @@ describe("sitemap of built pages", () => {
         ],
       },
     });
-    expect(locs(sitemap)).toEqual(["https://example.com/about/", "https://example.com/external/"]);
+    expect(locs(sitemap)).toEqual([
+      "https://example.com/",
+      "https://example.com/about/",
+      "https://example.com/external/",
+    ]);
     expect(sitemap).toContain("<lastmod>2026-05-05T00:00:00.000Z</lastmod>");
     expect(sitemap).not.toContain("2026-01-01");
   });
